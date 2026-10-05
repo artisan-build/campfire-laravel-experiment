@@ -164,23 +164,23 @@ final class JsonBroadcastingTest extends TestCase
         $this->assertStringNotContainsString('csrf', strtolower($encoded));
     }
 
-    public function test_human_mutations_emit_matching_turbo_and_json_events(): void
+    public function test_human_json_mutations_emit_only_the_json_events(): void
     {
         [$author, $room] = $this->fixture();
         $this->auth($author);
         $this->fakeBroadcasts();
 
-        $this->post('/rooms/'.$room->id.'/messages', [
+        $this->withHeader('Accept', 'application/json')->post('/rooms/'.$room->id.'/messages', [
             'message' => ['body' => '<p>Before</p>', 'client_message_id' => 'human-message'],
-        ])->assertOk();
+        ])->assertCreated()->assertJsonPath('client_message_id', 'human-message');
         $message = Message::firstOrFail();
-        $this->patch('/rooms/'.$room->id.'/messages/'.$message->id, ['message' => ['body' => '<p>After</p>']])->assertRedirect();
-        $this->post('/messages/'.$message->id.'/boosts', ['boost' => ['content' => 'ship']])->assertRedirect();
+        $this->patch('/rooms/'.$room->id.'/messages/'.$message->id, ['message' => ['body' => '<p>After</p>']])->assertOk()->assertJsonPath('body.plain_text', 'After');
+        $this->post('/messages/'.$message->id.'/boosts', ['boost' => ['content' => 'ship']])->assertCreated()->assertJsonPath('message_id', $message->id);
         $boost = Boost::firstOrFail();
-        $this->delete('/messages/'.$message->id.'/boosts/'.$boost->id)->assertOk();
-        $this->delete('/rooms/'.$room->id.'/messages/'.$message->id)->assertOk();
+        $this->delete('/messages/'.$message->id.'/boosts/'.$boost->id)->assertNoContent();
+        $this->delete('/rooms/'.$room->id.'/messages/'.$message->id)->assertNoContent();
 
-        $this->assertDualMutationEvents($room->id, $message->id, $boost->id, 'human-message');
+        $this->assertJsonMutationEvents($room->id, $message->id, $boost->id, 'human-message');
     }
 
     public function test_an_edit_with_sixty_boosts_commits_and_broadcasts_a_bounded_explicitly_partial_resource(): void
@@ -194,9 +194,9 @@ final class JsonBroadcastingTest extends TestCase
         $this->auth($author);
         Event::fake([TurboStreamBroadcast::class, MessageUpdated::class]);
 
-        $this->patch('/rooms/'.$room->id.'/messages/'.$message->id, ['message' => ['body' => '<p>After</p>']])->assertRedirect();
+        $this->withHeader('Accept', 'application/json')->patch('/rooms/'.$room->id.'/messages/'.$message->id, ['message' => ['body' => '<p>After</p>']])->assertOk();
 
-        Event::assertDispatched(TurboStreamBroadcast::class);
+        Event::assertNotDispatched(TurboStreamBroadcast::class);
         Event::assertDispatched(MessageUpdated::class);
         $event = Event::dispatched(MessageUpdated::class)->first()[0];
         $broadcast = $event->broadcastWith()['message'];
@@ -211,7 +211,7 @@ final class JsonBroadcastingTest extends TestCase
         $this->assertCount(60, $full['boosts']);
     }
 
-    public function test_bot_mutations_emit_matching_turbo_and_json_events(): void
+    public function test_bot_mutations_emit_the_same_json_events_without_turbo(): void
     {
         [, $room] = $this->fixture();
         $bot = User::create(['name' => 'Broadcast Bot', 'role' => 2, 'status' => 0, 'bot_token' => 'broadcast-key']);
@@ -227,7 +227,7 @@ final class JsonBroadcastingTest extends TestCase
         $this->delete($path.'/'.$message->id.'/boosts/'.$boost->id)->assertNoContent();
         $this->delete($path.'/'.$message->id)->assertNoContent();
 
-        $this->assertDualMutationEvents($room->id, $message->id, $boost->id, (string) $message->client_message_id);
+        $this->assertJsonMutationEvents($room->id, $message->id, $boost->id, (string) $message->client_message_id);
     }
 
     private function fakeBroadcasts(): void
@@ -242,9 +242,9 @@ final class JsonBroadcastingTest extends TestCase
         ]);
     }
 
-    private function assertDualMutationEvents(int $roomId, int $messageId, int $boostId, string $clientMessageId): void
+    private function assertJsonMutationEvents(int $roomId, int $messageId, int $boostId, string $clientMessageId): void
     {
-        Event::assertDispatched(TurboStreamBroadcast::class, 5);
+        Event::assertNotDispatched(TurboStreamBroadcast::class);
         Event::assertDispatched(MessagePosted::class, fn (MessagePosted $event) => $this->isRoomEvent($event, $roomId, 'message.posted'));
         Event::assertDispatched(MessageUpdated::class, fn (MessageUpdated $event) => $this->isRoomEvent($event, $roomId, 'message.updated')
             && $event->broadcastWith()['message']['body']['plain_text'] === ($event->broadcastWith()['message']['creator']['role'] === 'bot' ? 'Bot after' : 'After'));
@@ -257,6 +257,26 @@ final class JsonBroadcastingTest extends TestCase
             && $event->broadcastWith()['message'] === ['id' => $messageId, 'client_message_id' => $clientMessageId]);
         $this->assertDatabaseMissing('boosts', ['id' => $boostId]);
         $this->assertDatabaseMissing('messages', ['id' => $messageId]);
+    }
+
+    public function test_every_reduced_broadcast_representation_keeps_the_client_schema_floor(): void
+    {
+        [$author, $room] = $this->fixture();
+        $body = '<p>'.str_repeat('schema-floor-', 800).'</p>';
+        $message = app(MessageWriter::class)->create($room, $author, ['body' => $body]);
+
+        foreach ([7000, 4000, 2500] as $budget) {
+            config(['campfire.broadcast_payload_limit' => $budget]);
+            $resource = (new MessageResource($message->fresh()))->forBroadcast();
+
+            $this->assertSame(
+                ['id', 'client_message_id', 'created_at', 'updated_at', 'body', 'creator', 'room', 'url', 'attachment', 'boosts', 'mentions'],
+                array_values(array_intersect(array_keys($resource), ['id', 'client_message_id', 'created_at', 'updated_at', 'body', 'creator', 'room', 'url', 'attachment', 'boosts', 'mentions'])),
+            );
+            $this->assertSame(['plain_text', 'html', 'truncated'], array_keys($resource['body']));
+            $this->assertTrue($resource['body']['truncated']);
+            $this->assertLessThanOrEqual($budget, strlen(json_encode(['message' => $resource], JSON_THROW_ON_ERROR)));
+        }
     }
 
     private function isRoomEvent(object $event, int $roomId, string $name): bool

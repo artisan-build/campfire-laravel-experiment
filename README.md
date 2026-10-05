@@ -31,10 +31,16 @@ breaks all three. Each was replaced with the first-party Laravel answer rather t
 | Cache | `file` driver on local disk | `database`, on the same serverless Postgres |
 | Queue | SQLite file + an in-container worker | the configured queue; on Cloud, the managed queue |
 
-The browser side changed in exactly one place. turbo-rails routes every `cable.subscribeTo` call and
-every stream-source element through one consumer object, so
-`public/assets/campfire/echo/consumer.js` implements that interface on top of Laravel Echo and
-pusher-js. **No Stimulus controller and no helper was touched.**
+Room messages now use a page-owned Alpine stream over Laravel Echo. Initial history is rendered by
+Blade; posts, edits, deletes and boosts use the same `MessageResource` JSON contract over HTTP and
+Reverb, including optimistic reconciliation by `client_message_id`. The default import map does not
+load Turbo, Action Cable compatibility, Turbo stream rendering, or the message-only Stimulus stack.
+
+That cutover deliberately gives up Turbo prefetch, view transitions and restoration visits. Normal
+links and forms continue to use browser navigation. A temporary `config('campfire.json_message_stream')`
+rollback switch defaults to the JSON implementation and retains the old Turbo entry point, stream
+consumer, message controllers/models and rendered broadcast path for PR9 to delete. The retained path
+is not imported, subscribed, or broadcast while the default is active.
 
 This fork supports **fresh installs**, not migration from an existing Rails database or uploads
 directory. Rails cookie and CSRF formats remain the active implementation while the frontend is

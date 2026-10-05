@@ -9,7 +9,7 @@ return [
     |
     | Laravel Cloud injects the REVERB_* group when a managed WebSocket application is attached to the
     | environment. Nothing here sets those values. With no Reverb attached the app falls back to the
-    | null broadcaster and degrades to Turbo's own polling refresh.
+     | null broadcaster. HTTP mutations still work, but live delivery waits for Reverb to return.
     |
     */
 

@@ -9,6 +9,31 @@ use Tests\TestCase;
 
 final class AssetHeadTest extends TestCase
 {
+    public function test_the_default_entry_graph_excludes_turbo_action_cable_and_message_stimulus(): void
+    {
+        $this->fixture();
+        $html = $this->get('/session/new')->assertOk()->getContent();
+
+        $this->assertStringContainsString('/assets/campfire/application_json.js', $html);
+        $this->assertStringContainsString('/assets/campfire/message_stream.js', $html);
+        $this->assertStringNotContainsString('@hotwired/turbo-rails', $html);
+        $this->assertStringNotContainsString('@rails/actioncable', $html);
+        $this->assertStringNotContainsString('controllers/messages_controller', $html);
+        $this->assertStringNotContainsString('campfire/echo/stream_source', $html);
+        $this->assertStringNotContainsString('data-turbo-track', $html);
+    }
+
+    public function test_the_rollback_flag_restores_the_legacy_entry_graph(): void
+    {
+        config(['campfire.json_message_stream' => false]);
+        $this->fixture();
+        $html = $this->get('/session/new')->assertOk()->getContent();
+
+        $this->assertStringContainsString('/assets/campfire/application.js', $html);
+        $this->assertStringContainsString('@hotwired/turbo-rails', $html);
+        $this->assertStringContainsString('campfire/echo/stream_source', $html);
+    }
+
     public function test_the_head_emits_one_built_app_sheet_and_three_isolated_lexxy_sheets(): void
     {
         $this->fixture();

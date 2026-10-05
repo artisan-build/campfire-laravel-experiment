@@ -4,7 +4,7 @@
 <head>
 <title>{{ $title ?? 'Campfire' }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content">
-<meta name="view-transition" content="same-origin"><meta name="color-scheme" content="light dark">
+@unless(config('campfire.json_message_stream'))<meta name="view-transition" content="same-origin">@endunless<meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="csrf-token" content="{{ csrf_token() }}"><meta name="csrf-param" content="authenticity_token">
@@ -12,12 +12,12 @@
 @if(isset($currentUser))
 <meta name="current-user-id" content="{{ $currentUser->id }}"><meta name="current-user-name" content="{{ $currentUser->name }}">
 @endif
-<meta name="vapid-public-key" content="{{ app(\App\Support\Vapid::class)->publicKey() }}"><meta name="turbo-prefetch" content="true">
+<meta name="vapid-public-key" content="{{ app(\App\Support\Vapid::class)->publicKey() }}">@unless(config('campfire.json_message_stream'))<meta name="turbo-prefetch" content="true">@endunless
 <link rel="manifest" href="/webmanifest.json"><link rel="icon" href="/account/logo" type="image/png"><link rel="apple-touch-icon" href="/account/logo">
 {!! $assets->head() !!}
 @yield('head')
 </head>
-<body class="flex h-dvh flex-col overflow-hidden {{ $bodyClass ?? '' }}" data-controller="local-time" x-data="appShell" data-testid="app-shell">
+<body class="flex h-dvh flex-col overflow-hidden {{ $bodyClass ?? '' }}" @unless(($messageStream ?? false) && config('campfire.json_message_stream')) data-controller="local-time" @endunless x-data="appShell" @campfire:lightbox.window="openLightboxUrl($event)" data-testid="app-shell">
 <a href="#main-content" class="sr-only z-50 rounded-full bg-orange-500 px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to main content</a>
 <header id="nav" class="relative z-20 flex min-h-16 items-center gap-3 border-b border-stone-200 bg-white/90 px-3 backdrop-blur sm:px-5 dark:border-stone-800 dark:bg-stone-950/90" data-testid="app-navigation">
     @hasSection('sidebar')
@@ -34,7 +34,7 @@
 </div>
 @endif
 <div class="flex min-h-0 flex-1 overflow-hidden">
-    <main id="main-content" class="relative flex min-w-0 flex-1 flex-col overflow-auto bg-stone-50 dark:bg-stone-950" data-testid="app-content">
+    <main id="main-content" class="relative flex min-w-0 flex-1 flex-col overflow-auto bg-stone-50 dark:bg-stone-950" @if(($messageStream ?? false) && config('campfire.json_message_stream')) x-data="messageStream(@js(['roomId' => (int) $room->id, 'roomName' => $room->displayName($currentUser), 'roomType' => $room->type, 'userId' => (int) $currentUser->id, 'userName' => $currentUser->name, 'userAvatarUrl' => $currentUser->avatarUrl(), 'isAdmin' => (int) $currentUser->role === 1]))" @endif data-testid="app-content">
         @yield('content')
         <footer id="footer" class="mt-auto shrink-0" data-testid="app-footer">@yield('footer')</footer>
     </main>

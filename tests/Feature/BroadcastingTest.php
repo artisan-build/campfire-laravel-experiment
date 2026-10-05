@@ -57,6 +57,7 @@ final class BroadcastingTest extends TestCase
 
     public function test_a_posted_message_broadcasts_the_room_stream_and_one_unread_per_member(): void
     {
+        config(['campfire.json_message_stream' => false]);
         [$author, $room] = $this->fixture();
         $other = User::create(['name' => 'Jason', 'role' => 0, 'status' => 0]);
         Membership::create(['room_id' => $room->id, 'user_id' => $other->id, 'involvement' => 'everything']);
@@ -79,6 +80,7 @@ final class BroadcastingTest extends TestCase
 
     public function test_an_edit_and_a_delete_each_broadcast_to_the_room(): void
     {
+        config(['campfire.json_message_stream' => false]);
         [$author, $room] = $this->fixture();
         $message = app(MessageWriter::class)->create($room, $author, ['body' => '<p>Before</p>']);
         $this->auth($author);
@@ -213,7 +215,7 @@ final class BroadcastingTest extends TestCase
         $this->assertSame(0, Artisan::call('campfire:doctor'));
         $output = Artisan::output();
         $this->assertStringContainsString('broadcast encoding', $output);
-        $this->assertStringContainsString('turbo-stream-html (inline, gzip+base64, refresh-pointer)', $output);
+        $this->assertStringContainsString('message-resource-json (complete, fetch-required)', $output);
     }
 
     public function test_the_typing_endpoint_broadcasts_only_for_members(): void
@@ -238,10 +240,17 @@ final class BroadcastingTest extends TestCase
         $this->post('/rooms/'.$room->id.'/typing', ['action' => 'nonsense'])->assertStatus(302);
     }
 
-    public function test_the_room_page_names_its_own_channel_and_the_sidebar_names_the_users(): void
+    public function test_the_json_room_page_owns_the_subscription_and_the_legacy_page_keeps_rollback_sources(): void
     {
         [$author, $room] = $this->fixture();
         $this->auth($author);
+
+        $this->get('/rooms/'.$room->id)->assertOk()
+            ->assertSee('data-testid="room-message-template"', false)
+            ->assertSee('messageStream(', false)
+            ->assertDontSee('turbo-echo-stream-source', false);
+
+        config(['campfire.json_message_stream' => false]);
 
         $this->get('/rooms/'.$room->id)->assertOk()
             ->assertSee('<turbo-echo-stream-source channel="rooms.'.$room->id.'"', false);
@@ -253,6 +262,7 @@ final class BroadcastingTest extends TestCase
 
     public function test_a_direct_message_refreshes_both_sidebars(): void
     {
+        config(['campfire.json_message_stream' => false]);
         [$author, $room] = $this->fixture();
         $other = User::create(['name' => 'Jason', 'role' => 0, 'status' => 0]);
         $direct = Room::create(['name' => null, 'type' => 'Rooms::Direct', 'creator_id' => $author->id]);

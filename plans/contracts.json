@@ -1,7 +1,7 @@
 {
   "reference_revision": "659f95748a115a360a37db9bf80a5361a560e14f",
   "runtime": "Laravel 13 / PHP 8.4",
-  "ui_bar": "interactive Rails frontend; byte parity not yet established",
+  "ui_bar": "Laravel-native Alpine message stream active; live browser parity pending",
   "contracts": {
     "schema": {
       "status": "pending"
@@ -22,7 +22,11 @@
     },
     "messages": {
       "status": "verified",
-      "evidence": "Real create/update/delete, FTS, unreads, commit/rollback notification behavior verified in PHPUnit and independent HTTP."
+      "evidence": "Real create/update/delete, FTS, unreads, commit/rollback notification behavior verified in PHPUnit and independent HTTP. PR5 adds test-verified explicit JSON HTTP resources, optimistic reconciliation markers, stable pagination ordering and isolated JSON-only event dispatch; branch-head browser verification remains pending."
+    },
+    "json_message_stream": {
+      "status": "partially_verified",
+      "evidence": "Focused PHPUnit verifies the active Alpine/Echo bootstrap, five-event wiring, JSON mutation status/error contracts, server-rendered history, resource schema floor, attachment variants, authorization, default asset isolation and rollback graph. Two-user browser behavior and WebSocket frame capture remain pending."
     },
     "richtext": {
       "status": "pending"

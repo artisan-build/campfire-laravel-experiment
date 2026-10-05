@@ -28,7 +28,7 @@ final class MessageWriter
                 }
                 $this->body($message, $attributes['body'] ?? '');
                 $room->touch();
-                if ($room->type === 'Rooms::Direct') {
+                if ($room->type === 'Rooms::Direct' && ! config('campfire.json_message_stream')) {
                     app(SidebarEvents::class)->refresh($room->users()->pluck('users.id')->all());
                 }
                 $present = app(Presence::class)->inRoom($room->id);
