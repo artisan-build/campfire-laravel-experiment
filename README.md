@@ -36,15 +36,17 @@ every stream-source element through one consumer object, so
 `public/assets/campfire/echo/consumer.js` implements that interface on top of Laravel Echo and
 pusher-js. **No Stimulus controller and no helper was touched.**
 
-Rails compatibility is **dropped**: this fork cannot read an existing Rails database or uploads
-directory. Rails' cookie and signed-id formats are still implemented (`app/Support/RailsCrypto.php`)
-and still tested against the pinned reference, because the login cookie format is cheap to keep and
-upstream's oracles still pass.
+This fork supports **fresh installs**, not migration from an existing Rails database or uploads
+directory. Rails cookie and CSRF formats remain the active implementation while the frontend is
+migrated, but they are no longer compatibility guarantees: Laravel-native sessions, encryption and
+CSRF are the approved direction. Signed IDs still back upload/avatar URLs, and SGIDs are stored in
+rich text, so those formats remain intentionally supported.
 
 ## Deploying to Laravel Cloud
 
 You need the [Cloud CLI](https://cloud.laravel.com) and a GitHub repository. Everything below is a
-real command that was run to produce the live deployment.
+real command that was run to produce the live deployment. This is the current fresh-install path;
+one-click provisioning is the target, not functionality this revision claims to provide.
 
 ```sh
 # 1. The application, pointed at your fork.
