@@ -42,6 +42,12 @@ final class AssetHeadTest extends TestCase
         $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true);
         $source = file_get_contents(resource_path('css/app.css'));
 
+        preg_match_all('/^@import\s+"\.\.\/\.\.\/public\/assets\/(?<asset>[^"]+)"(?<layer>[^;]*);$/m', $source, $imports, PREG_SET_ORDER);
+        $this->assertNotEmpty($imports);
+        foreach ($imports as $import) {
+            $this->assertSame(' layer(components)', $import['layer'], "{$import['asset']} is outside the components layer");
+        }
+
         foreach ($manifest as $logical => $fingerprinted) {
             if (! str_ends_with($logical, '.css') || $logical === 'app.css' || str_starts_with($logical, 'lexxy')) {
                 continue;

@@ -1,7 +1,7 @@
 <turbo-frame id="user_sidebar">
     <turbo-echo-stream-source channel="rooms"></turbo-echo-stream-source>
     <turbo-echo-stream-source channel="users.{{ $currentUser->id }}.rooms"></turbo-echo-stream-source>
-    <div class="flex h-dvh flex-col gap-6 overflow-y-auto p-5" data-controller="badge-dot" data-badge-dot-unread-class="ring-2 ring-orange-500" data-action="rooms-list:unread@window->badge-dot#update rooms-list:read@window->badge-dot#update" data-testid="sidebar-rooms">
+    <div class="flex h-dvh flex-col gap-6 overflow-y-auto p-5" data-controller="badge-dot" data-badge-dot-unread-class="unread" data-action="rooms-list:unread@window->badge-dot#update rooms-list:read@window->badge-dot#update" data-testid="sidebar-rooms">
         <section class="grid gap-2">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="text-xs font-bold uppercase tracking-[0.18em] text-stone-500">Pings</h2>
@@ -9,7 +9,7 @@
             </div>
             <div id="direct_rooms" class="grid gap-1" data-controller="sorted-list">
                 @foreach($directs as $membership)
-                    <a id="list_room_{{ $membership->room_id }}" class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800 {{ $membership->unread_at ? 'ring-2 ring-orange-500' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}">{{ $membership->room->displayName($currentUser) }}</a>
+                    <a id="list_room_{{ $membership->room_id }}" class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800 {{ $membership->unread_at ? 'unread' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}">{{ $membership->room->displayName($currentUser) }}</a>
                 @endforeach
             </div>
         </section>
@@ -20,7 +20,7 @@
             </div>
             <div id="shared_rooms" class="grid gap-1" data-controller="sorted-list">
                 @foreach($shared as $membership)
-                    <a id="list_room_{{ $membership->room_id }}" class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800 {{ $membership->unread_at ? 'ring-2 ring-orange-500' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}" data-rooms-list-target="room" data-badge-dot-target="unread" data-sorted-list-target="item" data-sorted-list-name="{{ mb_strtolower($membership->room->name ?? '') }}">{{ $membership->room->name }}</a>
+                    <a id="list_room_{{ $membership->room_id }}" class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800 {{ $membership->unread_at ? 'unread' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}" data-rooms-list-target="room" data-badge-dot-target="unread" data-sorted-list-target="item" data-sorted-list-name="{{ mb_strtolower($membership->room->name ?? '') }}">{{ $membership->room->name }}</a>
                 @endforeach
             </div>
         </section>

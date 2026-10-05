@@ -6,6 +6,7 @@ use App\Models\Membership;
 use App\Models\User;
 use App\Support\MessageWriter;
 use DOMDocument;
+use DOMElement;
 use DOMXPath;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -67,9 +68,14 @@ final class TailwindChromeTest extends TestCase
         $profileHtml = $this->get('/users/me/profile')->assertOk()->getContent();
         $alpine = file_get_contents(public_path('assets/campfire/alpine.js'));
         $application = file_get_contents(public_path('assets/campfire/application.js'));
+        $importMap = json_decode(file_get_contents(resource_path('importmap.json')), true, flags: JSON_THROW_ON_ERROR)['imports'];
         $presentation = file_get_contents(resource_path('views/messages/presentation.blade.php'));
 
-        $this->assertStringContainsString('import "campfire/alpine"', $application);
+        $this->assertSame(1, preg_match('/import "(?<module>campfire\/alpine)"/', $application, $applicationImport));
+        $this->assertSame('ASSET:campfire/alpine.js', $importMap[$applicationImport['module']] ?? null);
+        $this->assertSame(1, preg_match('/import Alpine from "(?<module>[^"]+)"/', $alpine, $alpineImport));
+        $this->assertArrayHasKey($alpineImport['module'], $importMap);
+        $this->assertMatchesRegularExpression('/^Alpine\.start\(\)$/m', $alpine);
         $this->assertStringContainsString('x-data="appShell"', $roomHtml);
         $this->assertStringContainsString('@click="toggleSidebar()"', $roomHtml);
         $this->assertStringContainsString('x-data="dropTarget"', $roomHtml);
@@ -110,6 +116,97 @@ final class TailwindChromeTest extends TestCase
         $this->assertSame("sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'", $sidebar->attributes->getNamedItem(':class')?->nodeValue);
     }
 
+    public function test_retained_local_time_controller_owns_existing_and_optimistic_timestamps(): void
+    {
+        [$user, $room] = $this->fixture();
+        $message = app(MessageWriter::class)->create($room, $user, ['body' => '<p>Timestamp ownership fixture</p>']);
+        $this->auth($user);
+
+        $document = $this->document($this->get('/rooms/'.$room->id)->assertOk());
+        $xpath = new DOMXPath($document);
+        $controllers = $xpath->query('//*[@data-controller and contains(concat(" ", normalize-space(@data-controller), " "), " local-time ")]');
+
+        $this->assertNotFalse($controllers);
+        $this->assertCount(1, $controllers);
+        $controller = $controllers->item(0);
+        $this->assertInstanceOf(DOMElement::class, $controller);
+
+        $existing = $xpath->query('.//*[@id="message_'.$message->client_message_id.'"]//*[@data-local-time-target="date" or @data-local-time-target="time"]', $controller);
+        $templates = $xpath->query('.//script[@data-messages-target="template"]', $controller);
+        $this->assertNotFalse($existing);
+        $this->assertCount(2, $existing);
+        $this->assertNotFalse($templates);
+        $this->assertCount(1, $templates);
+
+        $template = $templates->item(0);
+        $this->assertNotNull($template);
+        $optimistic = new DOMDocument;
+        $optimistic->loadHTML($template->textContent, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $optimisticTargets = (new DOMXPath($optimistic))->query('//*[@data-local-time-target="date" or @data-local-time-target="time"]');
+        $this->assertNotFalse($optimisticTargets);
+        $this->assertCount(2, $optimisticTargets);
+    }
+
+    public function test_account_bots_navigation_is_visible_without_a_breakpoint(): void
+    {
+        [$user] = $this->fixture();
+        $this->auth($user);
+
+        $links = (new DOMXPath($this->document($this->get('/account/edit')->assertOk())))->query('//a[@href="/account/bots"]');
+        $this->assertNotFalse($links);
+        $this->assertNotEmpty($links);
+
+        $visibleLinks = array_filter(iterator_to_array($links), function ($link): bool {
+            return $link instanceof DOMElement
+                && ! in_array('hidden', preg_split('/\s+/', $link->getAttribute('class')), true);
+        });
+
+        $this->assertNotEmpty($visibleLinks);
+    }
+
+    public function test_lightbox_has_a_submit_capable_close_control(): void
+    {
+        [$user, $room] = $this->fixture();
+        $this->auth($user);
+
+        $xpath = new DOMXPath($this->document($this->get('/rooms/'.$room->id)->assertOk()));
+        $closeControls = $xpath->query('//*[@data-testid="app-lightbox"]//form[translate(@method, "DIALOG", "dialog")="dialog"]//button[@type="submit"]');
+
+        $this->assertNotFalse($closeControls);
+        $this->assertCount(1, $closeControls);
+    }
+
+    public function test_unread_room_contract_uses_one_visible_class_token(): void
+    {
+        [$user, $room] = $this->fixture();
+        $this->auth($user);
+
+        $roomDocument = $this->document($this->get('/rooms/'.$room->id)->assertOk());
+        $roomLists = (new DOMXPath($roomDocument))->query('//*[@data-rooms-list-unread-class="unread"]');
+        $this->assertNotFalse($roomLists);
+        $this->assertCount(1, $roomLists);
+
+        Membership::query()->whereBelongsTo($user)->whereBelongsTo($room)->update(['unread_at' => now()]);
+        $sidebarDocument = $this->document($this->get('/users/me/sidebar')->assertOk());
+        $sidebar = new DOMXPath($sidebarDocument);
+        $badges = $sidebar->query('//*[@data-badge-dot-unread-class="unread"]');
+        $links = $sidebar->query('//*[@data-room-id="'.$room->id.'" and @data-rooms-list-target="room" and @data-badge-dot-target="unread"]');
+        $this->assertNotFalse($badges);
+        $this->assertCount(1, $badges);
+        $this->assertNotFalse($links);
+        $this->assertCount(1, $links);
+
+        $link = $links->item(0);
+        $this->assertInstanceOf(DOMElement::class, $link);
+        $this->assertContains('unread', preg_split('/\s+/', $link->getAttribute('class')));
+
+        $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true, flags: JSON_THROW_ON_ERROR);
+        $css = file_get_contents(public_path('assets/'.$manifest['app.css']));
+        $this->assertSame(1, preg_match('/\.unread\{(?<declarations>[^}]*)\}/', $css, $unreadRule));
+        $this->assertStringContainsString('--tw-ring-shadow:', $unreadRule['declarations']);
+        $this->assertStringContainsString('--tw-ring-color:var(--color-orange-500)', $unreadRule['declarations']);
+    }
+
     public function test_removed_chrome_assets_and_stimulus_controllers_cannot_be_loaded(): void
     {
         $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true, flags: JSON_THROW_ON_ERROR);
@@ -136,11 +233,18 @@ final class TailwindChromeTest extends TestCase
 
     private function assertTestId(TestResponse $response, string $testId): void
     {
-        $document = new DOMDocument;
-        $document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $document = $this->document($response);
         $elements = (new DOMXPath($document))->query('//*[@data-testid="'.$testId.'"]');
 
         $this->assertNotFalse($elements);
         $this->assertCount(1, $elements, "Expected exactly one [data-testid=\"{$testId}\"].");
+    }
+
+    private function document(TestResponse $response): DOMDocument
+    {
+        $document = new DOMDocument;
+        $document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+
+        return $document;
     }
 }

@@ -37,6 +37,10 @@
   }
 }
 
+@layer components {
+  .unread { @apply ring-2 ring-orange-500; }
+}
+
 @source "../views/**/*.blade.php";
 @source "../../app/**/*.php";
 @source "../../public/assets/campfire/alpine.js";

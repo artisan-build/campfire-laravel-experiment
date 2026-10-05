@@ -17,7 +17,7 @@
 {!! $assets->head() !!}
 @yield('head')
 </head>
-<body class="flex h-dvh flex-col overflow-hidden {{ $bodyClass ?? '' }}" x-data="appShell" data-testid="app-shell">
+<body class="flex h-dvh flex-col overflow-hidden {{ $bodyClass ?? '' }}" data-controller="local-time" x-data="appShell" data-testid="app-shell">
 <a href="#main-content" class="sr-only z-50 rounded-full bg-orange-500 px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to main content</a>
 <header id="nav" class="relative z-20 flex min-h-16 items-center gap-3 border-b border-stone-200 bg-white/90 px-3 backdrop-blur sm:px-5 dark:border-stone-800 dark:bg-stone-950/90" data-testid="app-navigation">
     @hasSection('sidebar')
@@ -48,7 +48,7 @@
 <dialog class="m-auto max-h-[90dvh] max-w-[92vw] rounded-3xl bg-stone-950/95 p-3 text-white shadow-2xl backdrop:bg-stone-950/80" aria-label="Image viewer" x-ref="lightbox" @close="resetLightbox()" data-testid="app-lightbox">
     <img :src="lightboxSource" alt="" class="max-h-[78dvh] max-w-[88vw] rounded-2xl object-contain">
     <div class="mt-3 flex items-center justify-center gap-2">
-        <form method="dialog"><x-ui.button variant="secondary">Close</x-ui.button></form>
+        <form method="dialog"><x-ui.button type="submit" variant="secondary">Close</x-ui.button></form>
         <x-ui.button href="#" class="hide-in-ios-pwa" x-bind:href="lightboxDownload">Download</x-ui.button>
         <x-ui.button x-cloak x-show="canShareFiles" @click="shareLightbox()">Share</x-ui.button>
     </div>
