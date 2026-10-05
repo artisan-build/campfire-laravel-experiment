@@ -2,5 +2,6 @@
 // the first cable.subscribeTo already finds it.
 import "@hotwired/turbo-rails"
 import "campfire/echo"
+import "campfire/alpine"
 import "initializers"
 import "controllers"

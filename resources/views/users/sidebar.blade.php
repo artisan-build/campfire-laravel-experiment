@@ -1,1 +1,32 @@
-<turbo-frame id="user_sidebar"><turbo-echo-stream-source channel="rooms"></turbo-echo-stream-source><turbo-echo-stream-source channel="users.{{ $currentUser->id }}.rooms"></turbo-echo-stream-source><div class="sidebar__container" data-controller="badge-dot" data-badge-dot-unread-class="unread" data-action="rooms-list:unread@window->badge-dot#update rooms-list:read@window->badge-dot#update"><div class="directs"><a href="/rooms/directs/new">New Ping</a><div id="direct_rooms" data-controller="sorted-list">@foreach($directs as $membership)<a id="list_room_{{ $membership->room_id }}" class="direct {{ $membership->unread_at ? 'unread' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}">{{ $membership->room->displayName($currentUser) }}</a>@endforeach</div></div><div class="rooms"><div id="shared_rooms" data-controller="sorted-list">@foreach($shared as $membership)<a id="list_room_{{ $membership->room_id }}" class="room {{ $membership->unread_at ? 'unread' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}" data-rooms-list-target="room" data-badge-dot-target="unread" data-sorted-list-target="item" data-sorted-list-name="{{ mb_strtolower($membership->room->name ?? '') }}">{{ $membership->room->name }}</a>@endforeach</div><a href="/rooms/opens/new">New Chat Room</a></div><div class="sidebar__tools"><a href="/users/me/profile">My Settings</a><a href="/account/edit">Account Settings</a></div></div></turbo-frame>
+<turbo-frame id="user_sidebar">
+    <turbo-echo-stream-source channel="rooms"></turbo-echo-stream-source>
+    <turbo-echo-stream-source channel="users.{{ $currentUser->id }}.rooms"></turbo-echo-stream-source>
+    <div class="flex h-dvh flex-col gap-6 overflow-y-auto p-5" data-controller="badge-dot" data-badge-dot-unread-class="unread" data-action="rooms-list:unread@window->badge-dot#update rooms-list:read@window->badge-dot#update" data-testid="sidebar-rooms">
+        <section class="grid gap-2">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xs font-bold uppercase tracking-[0.18em] text-stone-500">Pings</h2>
+                <a href="/rooms/directs/new" class="text-sm font-semibold text-orange-700 hover:underline dark:text-orange-400">New</a>
+            </div>
+            <div id="direct_rooms" class="grid gap-1" data-controller="sorted-list">
+                @foreach($directs as $membership)
+                    <a id="list_room_{{ $membership->room_id }}" class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800 {{ $membership->unread_at ? 'unread' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}">{{ $membership->room->displayName($currentUser) }}</a>
+                @endforeach
+            </div>
+        </section>
+        <section class="grid gap-2">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xs font-bold uppercase tracking-[0.18em] text-stone-500">Rooms</h2>
+                <a href="/rooms/opens/new" class="text-sm font-semibold text-orange-700 hover:underline dark:text-orange-400">New</a>
+            </div>
+            <div id="shared_rooms" class="grid gap-1" data-controller="sorted-list">
+                @foreach($shared as $membership)
+                    <a id="list_room_{{ $membership->room_id }}" class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800 {{ $membership->unread_at ? 'unread' : '' }}" href="/rooms/{{ $membership->room_id }}" data-room-id="{{ $membership->room_id }}" data-rooms-list-target="room" data-badge-dot-target="unread" data-sorted-list-target="item" data-sorted-list-name="{{ mb_strtolower($membership->room->name ?? '') }}">{{ $membership->room->name }}</a>
+                @endforeach
+            </div>
+        </section>
+        <nav class="mt-auto grid gap-1 border-t border-stone-200 pt-4 dark:border-stone-700" aria-label="Settings">
+            <a class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800" href="/users/me/profile">My settings</a>
+            <a class="rounded-xl px-3 py-2 text-sm font-medium hover:bg-white dark:hover:bg-stone-800" href="/account/edit">Account settings</a>
+        </nav>
+    </div>
+</turbo-frame>
