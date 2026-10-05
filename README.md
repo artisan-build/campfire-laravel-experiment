@@ -200,10 +200,16 @@ docker exec campfire-pg psql -U campfire -d campfire -c 'CREATE DATABASE campfir
 composer install && cp .env.example .env && php artisan key:generate && php artisan migrate
 composer test          # PHPUnit, against Postgres
 vendor/bin/pint        # formatting
+composer tailwind      # rebuild the committed application stylesheet; Node is not required
 ```
 
 The suite runs on Postgres because production runs on Postgres and the full text search only exists
 there. `phpunit.xml` pins the database name; host, port and credentials come from `.env`.
+
+The application serves the committed, fingerprinted stylesheet, so installs and production runtime
+do not need Tailwind or Node. `composer tailwind` downloads the pinned standalone binary for the
+current platform into ignored `runtime/`, verifies its SHA-256, and deterministically rebuilds the
+committed asset when frontend source changes.
 
 ## Known differences from upstream
 

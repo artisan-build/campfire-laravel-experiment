@@ -25,10 +25,8 @@ final class Assets
             }
         }
         $s = '';
-        foreach ($this->manifest as $logical => $digest) {
-            if (str_ends_with($logical, '.css')) {
-                $s .= '<link rel="stylesheet" href="'.e('/assets/'.$digest).'" data-turbo-track="reload">';
-            }
+        foreach (['app.css', 'lexxy-variables.css', 'lexxy-content.css', 'lexxy-editor.css'] as $logical) {
+            $s .= '<link rel="stylesheet" href="'.e($this->path($logical)).'" data-turbo-track="reload">';
         }
 
         return $s.'<script type="importmap">'.json_encode($imports, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG).'</script><script type="module">import "application"</script>';

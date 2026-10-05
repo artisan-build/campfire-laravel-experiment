@@ -40,6 +40,9 @@
         "setup": [
             "@php artisan campfire:install"
         ],
+        "tailwind": [
+            "@php scripts/build-tailwind.php"
+        ],
         "lint": [
             "@php vendor/bin/pint"
         ],
