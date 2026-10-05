@@ -141,6 +141,10 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertStringContainsString("this.addBoost(message.dataset.messageId, payload.boost)\n      pending.remove()", $source);
         $this->assertStringContainsString('mentionIds.includes(Number(options.userId))', $source);
         $this->assertStringContainsString('highlightElement(block)', $source);
+        $this->assertLessThan(strpos($source, 'editor.value = editableBody'), strpos($source, 'presentation.replaceChildren(editor, actions)'));
+        $this->assertStringContainsString('this.lastTypingSent = 0', $source);
+        $this->assertStringContainsString('this.exhaustedPageAnchors.get(direction) === anchor', $source);
+        $this->assertStringContainsString('this.exhaustedPageAnchors.set(direction, anchor)', $source);
     }
 
     public function test_json_mutations_return_explicit_success_and_validation_statuses(): void

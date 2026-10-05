@@ -55,4 +55,23 @@ final class BrowserHarnessContractTest extends TestCase
             $this->assertStringContainsString($credential, $source);
         }
     }
+
+    public function test_pr5_live_repairs_have_a_runnable_browser_regression(): void
+    {
+        $path = base_path('tests/Browser/pr5-message-stream-regressions.mjs');
+        $source = file_get_contents($path);
+
+        $this->assertFileExists($path);
+        $this->assertStringContainsString('require.resolve("playwright"', $source);
+        $this->assertStringContainsString('process.env.PR5_BROWSER_EXECUTABLE || undefined', $source);
+        $this->assertStringContainsString('import "/assets/lexxy-a21f41d4.js"', $source);
+        $this->assertStringContainsString('await stream.startEdit', $source);
+        $this->assertStringContainsString('lexxy-editor[connected]', $source);
+        $this->assertStringContainsString('Connected edit editor did not receive the canonical body', $source);
+        $this->assertStringContainsString('Ctrl+Enter did not activate edit save', $source);
+        $this->assertStringContainsString('.typing-indicator--active', $source);
+        $this->assertStringContainsString('waitFor({ state: "detached", timeout: 7_000 })', $source);
+        $this->assertStringContainsString('Exhausted edge requested', $source);
+        $this->assertStringContainsString('Changed edge did not permit another pagination request', $source);
+    }
 }

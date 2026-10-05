@@ -56,6 +56,7 @@ Alpine.data("messageStream", (options) => ({
     this.editing = new Map()
     this.mutationVersion = 0
     this.pageLoading = false
+    this.exhaustedPageAnchors = new Map()
     this.hiddenAt = null
 
     this.$refs.messages.querySelectorAll("[data-message-id]").forEach((message) => this.indexMessage(message))
@@ -382,7 +383,6 @@ Alpine.data("messageStream", (options) => ({
     editor.className = "input lexxy-content"
     editor.setAttribute("aria-label", "Edit message")
     editor.setAttribute("autofocus", "")
-    editor.value = editableBody
     editor.addEventListener("keydown", (event) => this.editKeydown(event, message))
 
     const actions = document.createElement("div")
@@ -400,7 +400,10 @@ Alpine.data("messageStream", (options) => ({
     actions.append(save, cancel)
     presentation.replaceChildren(editor, actions)
     this.editing.set(message, { original, restoreFocus })
-    this.$nextTick(() => editor.focus())
+    this.$nextTick(() => {
+      editor.value = editableBody
+      editor.focus()
+    })
   },
 
   async editableBody(message) {
@@ -613,6 +616,7 @@ Alpine.data("messageStream", (options) => ({
   },
 
   stopTyping() {
+    this.lastTypingSent = 0
     this.sendTyping("stop")
   },
 
@@ -709,13 +713,15 @@ Alpine.data("messageStream", (options) => ({
   },
 
   async loadPage(direction, anchor) {
-    if (!anchor) return
+    anchor = String(anchor || "")
+    if (!anchor || this.pageLoading || this.exhaustedPageAnchors.get(direction) === anchor) return
     this.pageLoading = true
     const oldHeight = this.$refs.messages.scrollHeight
     const oldTop = this.$refs.messages.scrollTop
     try {
       const response = await fetch(`/rooms/${options.roomId}/messages?${direction}=${anchor}`, { headers: requestHeaders() })
       if (response.status === 204) {
+        this.exhaustedPageAnchors.set(direction, anchor)
         if (direction === "after") this.upToDate = true
         return
       }
