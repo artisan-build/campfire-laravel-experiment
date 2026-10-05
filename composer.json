@@ -20,6 +20,7 @@
         "pusher/pusher-php-server": "^7.2"
     },
     "require-dev": {
+        "larastan/larastan": "^3.12",
         "laravel/pint": "^1.24",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
@@ -39,9 +40,23 @@
         "setup": [
             "@php artisan campfire:install"
         ],
+        "lint": [
+            "@php vendor/bin/pint"
+        ],
+        "lint:test": [
+            "@php vendor/bin/pint --test"
+        ],
+        "stan": [
+            "@php vendor/bin/phpstan analyse --memory-limit=1G"
+        ],
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"
+        ],
+        "ready": [
+            "@lint",
+            "@stan",
+            "@test"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

@@ -1,0 +1,241 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Relation ''booster'' is not found in App\\Models\\Boost model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/BoostsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\User\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/BotsController.php
+
+		-
+			message: '#^Relation ''booster'' is not found in App\\Models\\Boost model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/BotsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$creator\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/ChatController.php
+
+		-
+			message: '#^Relation ''attachment'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/ChatController.php
+
+		-
+			message: '#^Relation ''boosts'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/ChatController.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/ChatController.php
+
+		-
+			message: '#^Relation ''richText'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/ChatController.php
+
+		-
+			message: '#^Relation ''room'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/ChatController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>body" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/ChatController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/PushController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Room\:\:\$users\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/RoomsController.php
+
+		-
+			message: '#^Relation ''users'' is not found in App\\Models\\Room model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/RoomsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TransfersController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$creator\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Jobs/DeliverMessageNotifications.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$room\.$#'
+			identifier: property.notFound
+			count: 11
+			path: app/Jobs/DeliverMessageNotifications.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>body" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Jobs/DeliverMessageNotifications.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>body" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/Message.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>filename" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/Message.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Room\:\:\$users\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Room.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Attachment\:\:\$blob\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/BlobStorage.php
+
+		-
+			message: '#^Relation ''blob'' is not found in App\\Models\\Attachment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Support/BlobStorage.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/ChatEvents.php
+
+		-
+			message: '#^Relation ''attachment'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Support/ChatEvents.php
+
+		-
+			message: '#^Relation ''boosts'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Support/ChatEvents.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Support/ChatEvents.php
+
+		-
+			message: '#^Relation ''richText'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Support/ChatEvents.php
+
+		-
+			message: '#^Relation ''room'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Support/ChatEvents.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/Media.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between resource\|null and false will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Support/Media.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Attachment\:\:\$blob\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/MessageWriter.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$room\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/MessageWriter.php
+
+		-
+			message: '#^Relation ''blob'' is not found in App\\Models\\Attachment model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Support/MessageWriter.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>body" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Support/MessageWriter.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: routes/web.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: routes/web.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$attachment\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/CampfireTest.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$richText\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/CampfireTest.php
+
+		-
+			message: '#^Method Illuminate\\Http\\UploadedFile@anonymous/tests/Feature/CampfireTest\.php\:228\:\:getMimeType\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: tests/Feature/CampfireTest.php
+
+		-
+			message: '#^Parameter \#1 \$pusher of class Illuminate\\Broadcasting\\Broadcasters\\PusherBroadcaster constructor expects Pusher\\Pusher, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/PresenceTest.php
