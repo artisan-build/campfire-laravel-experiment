@@ -38,3 +38,7 @@ that means replacing upstream code wholesale. Record every such replacement and 
   injected (the `laravel-cloud-deploy` skill). App secrets may be set by hand. Secrets never go on disk or into git.
 - `.cloud/config.json` is committed (brain standing policy).
 - Never enable any GitHub workflow that publishes images.
+- `gh` defaults to `artisan-build/campfire-laravel-experiment` (set 2026-10-05). In a fresh clone, run
+  `gh repo set-default artisan-build/campfire-laravel-experiment` first, or pass `--repo`: otherwise gh can resolve to Basecamp's upstream.
+- Worktrees need a REAL `composer install`. A symlinked `vendor/` autoloads `App\` from the main checkout, so the suite goes green
+  while proving nothing about the branch.
