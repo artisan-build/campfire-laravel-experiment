@@ -131,21 +131,29 @@ final class TailwindChromeTest extends TestCase
         $this->assertSame("sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'", $sidebar->attributes->getNamedItem(':class')?->nodeValue);
     }
 
-    public function test_json_room_does_not_activate_the_legacy_sidebar_body_layout(): void
+    public function test_json_room_and_rollback_keep_the_composer_inside_the_layout_shell(): void
     {
         [$user, $room] = $this->fixture();
         $this->auth($user);
 
         $document = $this->document($this->get('/rooms/'.$room->id)->assertOk());
-        $body = (new DOMXPath($document))->query('//body')->item(0);
+        $xpath = new DOMXPath($document);
+        $body = $xpath->query('//body')->item(0);
         $this->assertInstanceOf(DOMElement::class, $body);
         $this->assertNotContains('sidebar', preg_split('/\s+/', $body->getAttribute('class')));
+        $this->assertCount(1, $xpath->query('//main[@id="main-content"]//form[@data-testid="room-json-composer"]'));
+        $this->assertCount(1, $xpath->query('//main[@id="main-content"]/footer[@id="footer"]'));
+        $this->assertCount(1, $xpath->query('//main[@id="main-content"]/following-sibling::aside[@id="sidebar"]'));
 
         config(['campfire.json_message_stream' => false]);
         $legacyDocument = $this->document($this->get('/rooms/'.$room->id)->assertOk());
-        $legacyBody = (new DOMXPath($legacyDocument))->query('//body')->item(0);
+        $legacyXPath = new DOMXPath($legacyDocument);
+        $legacyBody = $legacyXPath->query('//body')->item(0);
         $this->assertInstanceOf(DOMElement::class, $legacyBody);
         $this->assertContains('sidebar', preg_split('/\s+/', $legacyBody->getAttribute('class')));
+        $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]//form[@id="composer"]'));
+        $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]/footer[@id="footer"]'));
+        $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]/following-sibling::aside[@id="sidebar"]'));
     }
 
     public function test_retained_local_time_controller_owns_existing_and_optimistic_timestamps(): void

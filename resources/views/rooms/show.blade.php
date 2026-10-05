@@ -53,7 +53,7 @@
         <label class="btn btn--borderless txt-small flex-item-no-shrink composer__attachment-btn input--file"><img src="{{ $assets->path('attachment.svg') }}" class="colorize--black" width="22" height="22" aria-hidden="true"><input type="file" multiple @change="addFiles($event.target.files); $event.target.value = ''"><span class="for-screen-reader">Attach a file</span></label>
         <button class="btn btn--borderless txt-small flex-item-no-shrink composer__rich-text-btn" type="button" @click="toolbarOpen = !toolbarOpen; $refs.editor.focus()"><img src="{{ $assets->path('text-options.svg') }}" width="20" height="20" aria-hidden="true"><span class="for-screen-reader">Rich text</span></button>
         <button name="send" type="submit" class="btn btn--reversed flex-item-no-shrink txt-small"><img src="{{ $assets->path('arrow-up.svg') }}" width="20" height="20" aria-hidden="true"><span class="for-screen-reader">Send Message</span></button>
-        </div></div></div></div></fieldset>
+        </div></div></div></fieldset>
         <div class="typing-indicator gap txt-small align-center flex-inline" :class="{ 'typing-indicator--active': typingNames }" aria-live="polite"><div class="typing-indicator__author spinner" x-text="typingNames"></div></div>
     </form>
 </div>
