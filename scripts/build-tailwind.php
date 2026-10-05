@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__.'/TailwindPlatform.php';
+
 const TAILWIND_VERSION = 'v4.1.14';
 const TAILWIND_ASSETS = [
     'linux-arm64' => ['tailwindcss-linux-arm64', '314941f5f6e143e74e740c587ad1fbaaede5462572dd330bbe0937e611e966db'],
@@ -14,18 +16,7 @@ const TAILWIND_ASSETS = [
 ];
 
 $root = dirname(__DIR__);
-$machine = strtolower(php_uname('m'));
-$architecture = match ($machine) {
-    'arm64', 'aarch64' => 'arm64',
-    'amd64', 'x86_64' => 'x64',
-    default => throw new RuntimeException("Unsupported Tailwind architecture [{$machine}]."),
-};
-$platform = match (PHP_OS_FAMILY) {
-    'Darwin' => 'macos-'.$architecture,
-    'Linux' => 'linux-'.$architecture.(is_file('/etc/alpine-release') ? '-musl' : ''),
-    'Windows' => 'windows-'.$architecture,
-    default => throw new RuntimeException('Unsupported Tailwind operating system ['.PHP_OS_FAMILY.'].'),
-};
+$platform = TailwindPlatform::current();
 
 if (! isset(TAILWIND_ASSETS[$platform])) {
     throw new RuntimeException("No pinned Tailwind build for [{$platform}].");
