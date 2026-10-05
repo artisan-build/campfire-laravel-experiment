@@ -30,8 +30,23 @@ final class Media
         return new ImageManager(extension_loaded('imagick') ? new ImagickDriver : new GdDriver);
     }
 
+    /**
+     * Where ffmpeg/ffprobe actually are, or null when this runtime has neither.
+     *
+     * The vendored runtime wins over PATH. Laravel Cloud's PHP image ships no ffmpeg, so
+     * campfire:provision-ffmpeg installs one into the deploy artifact during the build step and
+     * config('campfire.ffmpeg.directory') points here — no environment variable, and no reliance on
+     * the build having prepended anything to PATH, which is exactly what silently failed when the
+     * Rust sibling tried this. PATH is still consulted second, so a developer's own ffmpeg works.
+     */
     public function binary(string $name): ?string
     {
+        $runtime = app(FfmpegRuntime::class);
+
+        if ($runtime->installed($name)) {
+            return $runtime->path($name);
+        }
+
         return (new ExecutableFinder)->find($name);
     }
 

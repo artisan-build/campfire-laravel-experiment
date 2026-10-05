@@ -22,7 +22,7 @@ breaks all three. Each was replaced with the first-party Laravel answer rather t
 | Uploads | `file_put_contents` into Rails' Active Storage on-disk layout; zero use of `Storage` | every byte through the `Storage` facade, on whatever disk is configured |
 | Serving uploads | `response()->file()` from local disk | a redirect to a short-lived signed URL when the disk can sign one, streamed otherwise |
 | Image variants | `vips` via `Symfony\Process` | `intervention/image` on Imagick or GD — no binary needed |
-| Video posters | `ffmpeg` via `Symfony\Process` | the same, when `ffmpeg` is on `PATH`; no poster when it is not |
+| Video posters | `ffmpeg` via `Symfony\Process` | the same, against a pinned static `ffmpeg` the build step vendors into the app; no poster when neither that nor `PATH` has one |
 | Web Push keys | `storage/vapid.json`, generated per host | generated once onto the account row, shared by every replica |
 | Realtime | `bin/cable`, a Workerman Action Cable server fed by a local append-only `storage/events.log` | Laravel broadcasting over Reverb; the file, the server and Workerman are deleted |
 | Channel authorization | signed Turbo stream names, because the client named a channel *class* | `routes/channels.php`; the client names the channel and the server decides |
@@ -89,14 +89,75 @@ git push origin main
 **Set no environment variables.** Cloud generates `APP_KEY` and injects `DB_*`, `QUEUE_CONNECTION`,
 the `AWS_*` group with `FILESYSTEM_DISK`, and the `REVERB_*` group. Campfire needs nothing else:
 `SECRET_KEY_BASE` falls back to a value derived from `APP_KEY`, and the Web Push keys generate
-themselves onto the account row. The build command is Cloud's default and the deploy command is
-`php artisan migrate --force`.
+themselves onto the account row. The deploy command is `php artisan migrate --force`.
+
+### Vendor ffmpeg into the build, for video posters
+
+Cloud's PHP runtime has Imagick and **no ffmpeg**, so without this step a video attachment gets no
+poster and no duration. `campfire:provision-ffmpeg` downloads one pinned static LGPL build from
+[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), checks it against the release's own
+published SHA-256, throws away everything but `ffmpeg` and `ffprobe`, and installs the pair into
+`runtime/ffmpeg/bin` inside the application root. That directory is gitignored and rebuilt on every
+deploy. Read the environment's current build command first and append to it, rather than replacing
+it:
+
+```sh
+cloud environment:get production --json --fields=buildCommand
+
+cloud environment:update production --force \
+    --build-command="<the existing command> && php artisan campfire:provision-ffmpeg"
+```
+
+Nothing needs to be configured for the app to find it. `config('campfire.ffmpeg.directory')` points
+at that path and `App\Support\Media` looks there *before* it looks at `PATH`, so there is no
+environment variable to set and no reliance on the build having prepended anything to `PATH` — which
+is exactly what silently failed when the Rust sibling tried this. A developer's own ffmpeg on `PATH`
+keeps working untouched.
+
+Measured in an arm64 container: the archive expands to **291.2 MB**, the trimmed install is
+**179.7 MB** (ffmpeg 90.0 MB, ffprobe 89.8 MB), and the whole download-verify-extract-trim takes
+**8 s**. The build image needs `tar` and `xz`; the command checks for both and exits non-zero with
+the package to install if either is missing.
+
+To check the build step the way CI does, run it on linux/arm64:
+
+```sh
+docker run --rm --platform linux/arm64 --user root -v "$PWD:/app" -w /app \
+    serversideup/php:8.4-cli sh -c '
+        apt-get update -qq && apt-get install -y -qq xz-utils
+        install-php-extensions gd
+        php artisan campfire:provision-ffmpeg --force
+        php artisan campfire:doctor
+        vendor/bin/phpunit --group ffmpeg
+    '
+```
+
+That leaves **Linux** binaries in a bind-mounted `runtime/`, which macOS reports as executable
+because the permission bits say so. Running them on the host dies with exit 126, so Campfire only
+consults `runtime/ffmpeg/bin` on a platform it actually vendors a build for; on macOS the directory
+is ignored and `PATH` answers. Nothing needs cleaning up, and `rm -rf runtime` is safe whenever.
 
 Check what an instance actually resolved:
 
 ```sh
 cloud cmd:run production --cmd='php artisan campfire:doctor'
 ```
+
+The build log is **not** evidence. `campfire:doctor` prints the absolute path it resolved for
+`ffmpeg` and `ffprobe`, or `absent`, which is the only thing that answers whether the application
+found them.
+
+**The queue worker is a different host.** Cloud's managed queue runs jobs off the application
+instance, and `DeliverMessageNotifications` reaches ffmpeg whenever a bot's webhook replies with
+`video/mp4` — it creates an attachment, which makes a poster. So ask the worker too:
+
+```sh
+cloud cmd:run production --cmd='php artisan campfire:doctor --queue'
+```
+
+It dispatches a job that reports the worker's own hostname and the paths *it* resolved, waits up to
+60 s for the answer, and prints both tables side by side. If no worker answers it says so and exits
+non-zero rather than implying agreement.
 
 It prints the driver for every subsystem and round-trips the database, the cache and the disk. It
 prints names, never credentials.
