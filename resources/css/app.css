@@ -4,22 +4,22 @@
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-@import "../../public/assets/actiontext-7b8d51ea.css";
-@import "../../public/assets/animation-bcdb4bab.css";
-@import "../../public/assets/autocomplete-9de8c93f.css";
-@import "../../public/assets/avatars-279376ab.css";
-@import "../../public/assets/base-637a0ec8.css";
-@import "../../public/assets/boosts-da4032a8.css";
-@import "../../public/assets/buttons-c7d39fd4.css";
-@import "../../public/assets/code-333ae548.css";
-@import "../../public/assets/colorize-eb391ca0.css";
-@import "../../public/assets/colors-aee62523.css";
-@import "../../public/assets/composer-e490638a.css";
-@import "../../public/assets/embeds-c20d0a3a.css";
-@import "../../public/assets/inputs-9e58a07c.css";
-@import "../../public/assets/messages-c5485fef.css";
-@import "../../public/assets/spinner-5a118f25.css";
-@import "../../public/assets/utilities-e2f32466.css";
+@import "../../public/assets/actiontext-7b8d51ea.css" layer(components);
+@import "../../public/assets/animation-bcdb4bab.css" layer(components);
+@import "../../public/assets/autocomplete-9de8c93f.css" layer(components);
+@import "../../public/assets/avatars-279376ab.css" layer(components);
+@import "../../public/assets/base-637a0ec8.css" layer(components);
+@import "../../public/assets/boosts-da4032a8.css" layer(components);
+@import "../../public/assets/buttons-c7d39fd4.css" layer(components);
+@import "../../public/assets/code-333ae548.css" layer(components);
+@import "../../public/assets/colorize-eb391ca0.css" layer(components);
+@import "../../public/assets/colors-aee62523.css" layer(components);
+@import "../../public/assets/composer-e490638a.css" layer(components);
+@import "../../public/assets/embeds-c20d0a3a.css" layer(components);
+@import "../../public/assets/inputs-9e58a07c.css" layer(components);
+@import "../../public/assets/messages-c5485fef.css" layer(components);
+@import "../../public/assets/spinner-5a118f25.css" layer(components);
+@import "../../public/assets/utilities-e2f32466.css" layer(components);
 
 @layer base {
   [x-cloak] { display: none !important; }
