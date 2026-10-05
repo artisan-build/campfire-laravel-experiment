@@ -40,7 +40,7 @@
     </main>
     @hasSection('sidebar')
         <button type="button" aria-label="Close rooms" class="fixed inset-0 z-20 bg-stone-950/40 transition lg:hidden" x-cloak x-show="sidebarOpen" x-transition.opacity @click="closeSidebar()"></button>
-        <aside id="sidebar" class="fixed inset-y-0 right-0 z-30 w-[min(22rem,88vw)] translate-x-full border-l border-stone-200 bg-stone-100 shadow-2xl transition-transform duration-300 lg:relative lg:z-10 lg:w-80 lg:translate-x-0 lg:shadow-none dark:border-stone-800 dark:bg-stone-900" :class="sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'" @keydown.escape.window="closeSidebar()" data-testid="app-sidebar">
+        <aside id="sidebar" class="fixed inset-y-0 right-0 z-30 w-[min(22rem,88vw)] border-l border-stone-200 bg-stone-100 shadow-2xl transition-transform duration-300 lg:relative lg:z-10 lg:w-80 lg:translate-x-0 lg:shadow-none dark:border-stone-800 dark:bg-stone-900" :class="sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'" @keydown.escape.window="closeSidebar()" data-testid="app-sidebar">
             @yield('sidebar')
         </aside>
     @endif

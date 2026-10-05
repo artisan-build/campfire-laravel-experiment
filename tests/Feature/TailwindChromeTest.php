@@ -90,6 +90,26 @@ final class TailwindChromeTest extends TestCase
         $this->assertStringContainsString('await navigator.share(data)', $alpine);
     }
 
+    public function test_mobile_sidebar_translation_is_owned_by_the_alpine_state(): void
+    {
+        [$user, $room] = $this->fixture();
+        $this->auth($user);
+
+        $document = new DOMDocument;
+        $document->loadHTML($this->get('/rooms/'.$room->id)->assertOk()->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $sidebars = (new DOMXPath($document))->query('//*[@data-testid="app-sidebar"]');
+
+        $this->assertNotFalse($sidebars);
+        $this->assertCount(1, $sidebars);
+
+        $sidebar = $sidebars->item(0);
+        $this->assertNotNull($sidebar);
+        $staticClasses = preg_split('/\s+/', $sidebar->attributes->getNamedItem('class')->nodeValue);
+        $this->assertNotContains('translate-x-full', $staticClasses);
+        $this->assertNotContains('translate-x-0', $staticClasses);
+        $this->assertSame("sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'", $sidebar->attributes->getNamedItem(':class')?->nodeValue);
+    }
+
     public function test_removed_chrome_assets_and_stimulus_controllers_cannot_be_loaded(): void
     {
         $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true, flags: JSON_THROW_ON_ERROR);
