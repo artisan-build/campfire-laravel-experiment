@@ -235,7 +235,7 @@ final class CampfireTest extends TestCase
 
         $upload = new class($source, 'picture.png', 'image/png', null, true) extends UploadedFile
         {
-            public function getMimeType(): ?string
+            public function getMimeType(): string
             {
                 return 'image/png';
             }

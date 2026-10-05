@@ -67,12 +67,6 @@ parameters:
 			path: routes/web.php
 
 		-
-			message: '#^Method Illuminate\\Http\\UploadedFile@anonymous/tests/Feature/CampfireTest\.php\:228\:\:getMimeType\(\) never returns null so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: tests/Feature/CampfireTest.php
-
-		-
 			message: '#^Parameter \#1 \$pusher of class Illuminate\\Broadcasting\\Broadcasters\\PusherBroadcaster constructor expects Pusher\\Pusher, Mockery\\MockInterface given\.$#'
 			identifier: argument.type
 			count: 2
