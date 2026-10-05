@@ -152,6 +152,38 @@ final class BroadcastCsrfTest extends TestCase
         $this->assertDatabaseMissing('boosts', ['message_id' => $message->id]);
     }
 
+    /**
+     * Removing the tokens shrank the fragment by ~1.5 KB, which moves a typical message off the gzip
+     * branch and onto the inline one. The budget is compared against the raw fragment, but the frame
+     * on the wire is that payload JSON-encoded and escaped again inside the Pusher envelope, so the
+     * inline branch has to stay well clear of Reverb's 10 000-byte ceiling.
+     */
+    public function test_no_inline_broadcast_approaches_reverbs_frame_ceiling(): void
+    {
+        [$author, $room] = $this->fixture();
+        $this->auth($author);
+        $this->get('/rooms/'.$room->id)->assertOk();
+
+        foreach ([20, 200, 400, 600, 800, 2000] as $length) {
+            $this->broadcasts = [];
+            $this->post('/rooms/'.$room->id.'/messages', [
+                'message' => ['body' => '<p>'.str_repeat('a', $length).'</p>', 'client_message_id' => 'cid'.$length],
+            ])->assertOk();
+
+            foreach ($this->broadcasts as $broadcast) {
+                if (! $broadcast instanceof TurboStreamBroadcast) {
+                    continue;
+                }
+                $frame = strlen((string) json_encode([
+                    'event' => $broadcast->broadcastAs(),
+                    'channel' => 'private-'.$broadcast->channel,
+                    'data' => json_encode($broadcast->broadcastWith()),
+                ]));
+                $this->assertLessThan(10000, $frame, 'a '.$length.'-character message produced a '.$frame.'-byte frame');
+            }
+        }
+    }
+
     /** Every broadcast payload, decoded through the same branch the browser decodes. */
     private function payloads(): array
     {
