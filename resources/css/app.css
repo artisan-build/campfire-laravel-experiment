@@ -1,9 +1,9 @@
 @layer theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-@import "../../public/assets/_reset-9c3efd7b.css";
 @import "../../public/assets/actiontext-7b8d51ea.css";
 @import "../../public/assets/animation-bcdb4bab.css";
 @import "../../public/assets/autocomplete-9de8c93f.css";
@@ -16,20 +16,27 @@
 @import "../../public/assets/colors-aee62523.css";
 @import "../../public/assets/composer-e490638a.css";
 @import "../../public/assets/embeds-c20d0a3a.css";
-@import "../../public/assets/filters-8a4d63ed.css";
-@import "../../public/assets/flash-a561c1e5.css";
 @import "../../public/assets/inputs-9e58a07c.css";
-@import "../../public/assets/layout-ff6ddfc6.css";
-@import "../../public/assets/lightbox-af496d39.css";
 @import "../../public/assets/messages-c5485fef.css";
-@import "../../public/assets/nav-05e7183a.css";
-@import "../../public/assets/panels-af44ec6d.css";
-@import "../../public/assets/separators-172b3ab8.css";
-@import "../../public/assets/sidebar-0be58db9.css";
-@import "../../public/assets/signup-6e02d591.css";
 @import "../../public/assets/spinner-5a118f25.css";
-@import "../../public/assets/trix-65afdb1d.css";
 @import "../../public/assets/utilities-e2f32466.css";
+
+@layer base {
+  [x-cloak] { display: none !important; }
+
+  body {
+    @apply min-h-dvh bg-stone-100 text-stone-950 antialiased dark:bg-stone-950 dark:text-stone-50;
+  }
+
+  a { @apply underline-offset-4; }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  select,
+  textarea {
+    @apply min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-base text-stone-950 shadow-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-200 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-50 dark:focus:ring-orange-900;
+  }
+}
 
 @source "../views/**/*.blade.php";
 @source "../../app/**/*.php";
+@source "../../public/assets/campfire/alpine.js";

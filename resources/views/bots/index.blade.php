@@ -1,18 +1,23 @@
 @extends('layouts.app', ['title' => 'Chat bots'])
-@section('nav')<a class="btn" href="/account/edit">Back to account settings</a>@endsection
+@section('nav')<x-ui.button href="/account/edit" variant="ghost">Back to account settings</x-ui.button>@endsection
 @section('content')
-<section class="panel panel--wide txt-align-center flex flex-column position-relative"><div class="pad-inline-double center"><h1 class="margin-none">Chat bots</h1><p>With Chat bots, other sites and services can post updates directly to Campfire.</p><a href="/account/bots/new" class="btn btn--reversed txt-large" aria-label="Add a chat bot">Add a chat bot</a></div>
-<menu class="flex flex-column gap margin-none pad">
-@foreach($bots as $bot)
-<li class="flex flex-column gap flush fill-shade border-radius pad-block pad-inline-double"><div class="flex align-center gap"><figure class="avatar flex-item-no-shrink"><img src="{{ $bot->avatarUrl() }}" width="48" height="48" alt=""></figure><strong class="txt-large">{{ $bot->name }}</strong><a href="/account/bots/{{ $bot->id }}/edit" class="btn flex-item-justify-end">Edit {{ $bot->name }}</a></div>
-@foreach($bot->rooms()->where('type','!=','Rooms::Direct')->orderBy('name')->get() as $room)
-<fieldset class="gap max-width pad border border-radius"><legend><strong>{{ $room->name }}</strong></legend>
-@foreach(["curl -d 'Hello!' ".url('/rooms/'.$room->id.'/'.$bot->id.'-'.$bot->bot_token.'/messages') => 'curl command for posting messages', 'curl -F "attachment=@/path/to/file" '.url('/rooms/'.$room->id.'/'.$bot->id.'-'.$bot->bot_token.'/messages') => 'curl command for posting attachments'] as $command=>$label)
-<div class="flex align-center gap"><input type="text" class="input full-width fill-white" readonly aria-label="{{ $label }}" value="{{ $command }}"><button class="btn" data-controller="copy-to-clipboard" data-action="copy-to-clipboard#copy" data-copy-to-clipboard-content-value="{{ $command }}" data-copy-to-clipboard-success-class="btn--success">Copy</button></div>
-@endforeach
-</fieldset>
-@endforeach
-</li>
-@endforeach
-</menu></section>
+<div class="w-full p-4 sm:p-8" data-testid="settings-bots">
+<x-ui.panel class="max-w-5xl">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-sm font-bold uppercase tracking-[0.18em] text-orange-600">Integrations</p><h1 class="text-3xl font-black tracking-tight">Chat bots</h1><p class="mt-2 text-stone-600 dark:text-stone-300">Let other services post updates directly to Campfire.</p></div><x-ui.button href="/account/bots/new" variant="primary">Add a chat bot</x-ui.button></div>
+    <div class="mt-8 grid gap-5">
+    @foreach($bots as $bot)
+        <article class="grid gap-4 rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-950">
+            <div class="flex items-center gap-3"><img class="size-12 rounded-full object-cover" src="{{ $bot->avatarUrl() }}" width="48" height="48" alt=""><strong class="text-xl">{{ $bot->name }}</strong><x-ui.button href="/account/bots/{{ $bot->id }}/edit" class="ml-auto">Edit</x-ui.button></div>
+            @foreach($bot->rooms()->where('type','!=','Rooms::Direct')->orderBy('name')->get() as $room)
+                <fieldset class="grid gap-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-700"><legend class="px-2 font-bold">{{ $room->name }}</legend>
+                @foreach(["curl -d 'Hello!' ".url('/rooms/'.$room->id.'/'.$bot->id.'-'.$bot->bot_token.'/messages') => 'curl command for posting messages', 'curl -F "attachment=@/path/to/file" '.url('/rooms/'.$room->id.'/'.$bot->id.'-'.$bot->bot_token.'/messages') => 'curl command for posting attachments'] as $command=>$label)
+                    <div class="flex flex-col gap-2 sm:flex-row" x-data="clipboard(@js($command))"><input class="min-w-0 flex-1 font-mono text-sm" type="text" readonly aria-label="{{ $label }}" value="{{ $command }}"><x-ui.button @click="copy()" x-bind:class="{ 'bg-emerald-600 text-white': copied }"><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></x-ui.button></div>
+                @endforeach
+                </fieldset>
+            @endforeach
+        </article>
+    @endforeach
+    </div>
+</x-ui.panel>
+</div>
 @endsection

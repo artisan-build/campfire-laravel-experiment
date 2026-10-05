@@ -1,2 +1,3 @@
 Original ONCE Campfire frontend at 659f95748a115a360a37db9bf80a5361a560e14f. MIT license.
 Assets copied from campfire-ruby:readme-659f957 build.
+Alpine.js 3.14.9 ESM from jsDelivr, SHA-256 f00594ce50655463ddfda0de294457e8c0fad36f1896182f66f6cea7db36b93c. MIT license.

@@ -5,7 +5,7 @@
 @if(str_starts_with($blob->content_type ?? '', 'video/'))
 <video src="{{ $url }}" poster="{{ $storage->representationUrl($blob, ['resize_to_limit' => [1200, 800], 'format' => 'webp']) }}" controls preload="none" class="message__attachment"></video>
 @elseif(str_starts_with($blob->content_type ?? '', 'image/') || $blob->content_type === 'application/pdf')
-<a href="{{ $url }}" class="flex" data-lightbox-target="image" data-action="lightbox#open" data-lightbox-url-value="{{ $url }}?disposition=attachment"><img src="{{ $storage->representationUrl($blob, ['resize_to_limit' => [1200, 800], 'format' => $storage->thumbnailFormat($blob)]) }}" alt="{{ $blob->filename }}" class="message__attachment" loading="lazy"></a>
+<a href="{{ $url }}" class="flex" data-lightbox-url="{{ $url }}?disposition=attachment" @click.prevent="openLightbox($el)"><img src="{{ $storage->representationUrl($blob, ['resize_to_limit' => [1200, 800], 'format' => $storage->thumbnailFormat($blob)]) }}" alt="{{ $blob->filename }}" class="message__attachment" loading="lazy"></a>
 @else
 <a href="{{ $url }}?disposition=attachment">{{ $blob->filename }}</a>
 @endif
