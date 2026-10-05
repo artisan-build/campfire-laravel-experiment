@@ -33,7 +33,7 @@ Artisan::command('campfire:install', function () {
  * then never reached the application. Verify with campfire:doctor on the instance.
  */
 Artisan::command('campfire:provision-ffmpeg {--force}', function (): int {
-    $runtime = FfmpegRuntime::make();
+    $runtime = app(FfmpegRuntime::class);
 
     if (! $this->option('force') && $runtime->provisioned()) {
         $this->info('ffmpeg is already installed at '.$runtime->directory().'; pass --force to reinstall.');
