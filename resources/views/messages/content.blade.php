@@ -10,9 +10,10 @@
 <details class="position-relative" data-controller="popup" data-action="keydown.esc->popup#close toggle->popup#toggle click@document->popup#closeOnClickOutside" data-popup-orientation-top-class="popup-orientation-top">
 <summary class="btn message__action-btn message__options-btn"><img src="{{ $assets->path('menu-dots-horizontal.svg') }}" width="20" height="20" class="colorize--black" aria-hidden="true"><span class="for-screen-reader">Message options</span></summary>
 <div class="message__actions-menu border shadow" data-popup-target="menu">
+{{-- Rendered into broadcasts, so it must carry nothing session-scoped: a CSRF token here would be the POSTER's, delivered to every other member of the room. Turbo sends each viewer's own token as X-CSRF-Token from <meta name="csrf-token">, which RailsCsrf accepts. --}}
 <div class="quick-boosts">
 @foreach(['👍'=>'Thumbs up','👏'=>'Clapping','👋'=>'Waving hand','💪'=>'Muscle','❤️'=>'Red heart','😂'=>'Face with tears of joy','🎉'=>'Party popper','🔥'=>'Fire'] as $emoji=>$label)
-<form action="/messages/{{ $message->id }}/boosts" method="post" data-turbo-frame="boosting_{{ $dom }}" data-action="popup#close">@csrf<input type="hidden" name="authenticity_token" value="{{ csrf_token() }}"><input type="hidden" name="boost[content]" value="{{ $emoji }}"><button type="submit" title="{{ $label }}" class="btn message__action-btn" data-emoji="{{ $emoji }}"><figure class="margin-none boost-character">{{ $emoji }}</figure><span class="for-screen-reader">{{ $label }}</span></button></form>
+<form action="/messages/{{ $message->id }}/boosts" method="post" data-turbo-frame="boosting_{{ $dom }}" data-action="popup#close"><input type="hidden" name="boost[content]" value="{{ $emoji }}"><button type="submit" title="{{ $label }}" class="btn message__action-btn" data-emoji="{{ $emoji }}"><figure class="margin-none boost-character">{{ $emoji }}</figure><span class="for-screen-reader">{{ $label }}</span></button></form>
 @endforeach
 <a href="/messages/{{ $message->id }}/boosts/new" class="btn message__action-btn message__boost-btn" data-turbo-frame="new_boost_{{ $dom }}" data-action="soft-keyboard#open popup#close"><img src="{{ $assets->path('boost.svg') }}" class="colorize--black" width="20" height="20" aria-hidden="true"><span class="for-screen-reader">New boost</span></a>
 </div>
