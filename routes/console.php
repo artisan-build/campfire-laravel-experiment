@@ -2,6 +2,7 @@
 
 use App\Support\BlobStorage;
 use App\Support\Media;
+use App\Support\Presence;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,17 @@ Artisan::command('campfire:doctor', function () {
         ['ffprobe', app(Media::class)->binary('ffprobe') ?? 'absent (no video metadata)'],
         ['reverb host', config('broadcasting.connections.reverb.options.host') ?: 'unset'],
     ];
+
+    // Presence is read from Reverb on the message-post path, so its round trip is a latency cost
+    // every message pays. Measure it from where it actually happens.
+    $samples = [];
+    for ($i = 0; $i < 5; $i++) {
+        $started = hrtime(true);
+        app(Presence::class)->inRoom(1);
+        $samples[] = (hrtime(true) - $started) / 1e6;
+    }
+    sort($samples);
+    $rows[] = ['reverb presence lookup', sprintf('%.0f ms median of 5 (min %.0f, max %.0f)', $samples[2], $samples[0], $samples[4])];
 
     try {
         DB::select('select 1');
