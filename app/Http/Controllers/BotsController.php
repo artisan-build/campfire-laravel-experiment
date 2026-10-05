@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\MessageResource;
 use App\Models\Boost;
 use App\Models\Membership;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\BlobStorage;
-use App\Support\Broadcasting;
 use App\Support\ChatEvents;
 use App\Support\MessageWriter;
 use Illuminate\Http\Request;
@@ -108,13 +108,11 @@ final class BotsController extends Controller
             $content = $r->getContent();
             abort_unless(trim($content) !== '' && mb_strlen($content) <= 16, 422);
             $b = Boost::create(['message_id' => $id, 'booster_id' => $bot->id, 'content' => $content]);
-            $s = app(ChatController::class)->stream('append', 'boosts_message_'.$m->client_message_id, view('boosts.boost', ['boost' => $b->load('booster')])->render());
-            app(Broadcasting::class)->room($room->id, $s);
+            app(ChatEvents::class)->boostAdded($m, $b);
 
             return response()->json(['id' => $b->id, 'content' => $b->content, 'booster' => ['id' => $bot->id, 'name' => $bot->name]], 201);
         }$b = $m->boosts()->where('booster_id', $bot->id)->findOrFail($boost);
-        $b->delete();
-        app(Broadcasting::class)->room($room->id, app(ChatController::class)->stream('remove', 'boost_'.$boost, ''));
+        app(ChatEvents::class)->removeBoost($m, $b);
 
         return response('', 204);
     }
@@ -125,7 +123,6 @@ final class BotsController extends Controller
         $bot = count($p) === 2 ? User::active()->where('role', 2)->where('bot_token', $p[1])->find($p[0]) : null;
         abort_unless($bot, 401);
         $room = $bot->rooms()->findOrFail($room);
-        $controller = app(ChatController::class);
         if ($r->isMethod('GET')) {
             $query = $room->messages()->presentation();
             if ($r->filled('before') || $r->filled('after')) {
@@ -133,7 +130,7 @@ final class BotsController extends Controller
                 $query->where('created_at', $r->filled('after') ? '>' : '<', $anchor->getRawOriginal('created_at'));
             }
             $messages = $r->filled('after') ? $query->orderBy('created_at')->limit(40)->get() : $query->orderByDesc('created_at')->limit(40)->get()->reverse()->values();
-            $response = response()->json($messages->map(fn ($message) => $controller->json($message)))->header('X-Total-Count', $room->messages()->count());
+            $response = response()->json($messages->map(fn ($message) => (new MessageResource($message))->resolve(new Request)))->header('X-Total-Count', $room->messages()->count());
             if ($messages->isNotEmpty()) {
                 $anchor = $r->filled('after') ? $messages->last() : $messages->first();
                 $direction = $r->filled('after') ? 'after' : 'before';
@@ -160,13 +157,12 @@ final class BotsController extends Controller
         }
         $m = $room->messages()->where('creator_id', $bot->id)->findOrFail($id);
         if ($r->isMethod('DELETE')) {
-            $target = 'message_'.$m->client_message_id;
-            app(MessageWriter::class)->destroy($m);
-            app(Broadcasting::class)->room($room->id, $controller->stream('remove', $target, ''));
+            app(ChatEvents::class)->delete($m);
 
             return response('', 204);
         }app(MessageWriter::class)->update($m, $r->input('message', ['body' => $r->getContent()]));
+        app(ChatEvents::class)->updated($m);
 
-        return response()->json($controller->json($m->fresh()->load('creator', 'richText')));
+        return response()->json((new MessageResource($m))->resolve(new Request));
     }
 }
