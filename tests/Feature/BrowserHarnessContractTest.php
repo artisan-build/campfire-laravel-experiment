@@ -17,6 +17,8 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('const phone = await browser.newContext', $source);
         $this->assertStringContainsString('writeFileSync(outputPath', $source);
         $this->assertStringNotContainsString('writeFileSync(outputPath, payload', $source);
+        $this->assertStringContainsString('page.locator(\'form[action="/session"]\').getByRole("button", { name: "Sign in", exact: true }).click()', $source);
+        $this->assertStringNotContainsString('page.locator(\'button[type="submit"]\').click()', $source);
 
         foreach ([
             'post and optimistic reconciliation',

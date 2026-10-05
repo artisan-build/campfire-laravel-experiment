@@ -77,7 +77,7 @@ async function login(page, email, password) {
   await page.locator('input[name="password"]').fill(password)
   await Promise.all([
     page.waitForURL((url) => !url.pathname.startsWith("/session")),
-    page.locator('button[type="submit"]').click(),
+    page.locator('form[action="/session"]').getByRole("button", { name: "Sign in", exact: true }).click(),
   ])
 }
 
