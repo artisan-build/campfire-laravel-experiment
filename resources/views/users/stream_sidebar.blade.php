@@ -1,4 +1,4 @@
-<div class="flex h-dvh flex-col gap-6 overflow-y-auto p-5" data-testid="sidebar-rooms">
+<div id="user_sidebar" class="flex h-dvh flex-col gap-6 overflow-y-auto p-5" data-testid="sidebar-rooms">
     <section class="grid gap-2">
         <div class="flex items-center justify-between gap-3"><h2 class="text-xs font-bold uppercase tracking-[0.18em] text-stone-500">Pings</h2><a href="/rooms/directs/new" class="text-sm font-semibold text-orange-700 hover:underline dark:text-orange-400">New</a></div>
         <div id="direct_rooms" class="grid gap-1">

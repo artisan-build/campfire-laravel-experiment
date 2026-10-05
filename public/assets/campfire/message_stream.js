@@ -9,6 +9,7 @@ const OFFLINE_DELAY = 5_000
 function completeMessage(message) {
   return message && MESSAGE_KEYS.every((key) => Object.hasOwn(message, key)) &&
     message.body && typeof message.body.html === "string" && typeof message.body.plain_text === "string" &&
+    (typeof message.body.editable_html === "string" || message.body.editable_html === null) &&
     message.creator && Number.isInteger(message.creator.id) && Array.isArray(message.boosts)
 }
 
@@ -53,6 +54,7 @@ Alpine.data("messageStream", (options) => ({
     this.messagesByClientId = new Map()
     this.typingUsers = new Map()
     this.editing = new Map()
+    this.mutationVersion = 0
     this.pageLoading = false
     this.hiddenAt = null
 
@@ -87,6 +89,7 @@ Alpine.data("messageStream", (options) => ({
     echo?.leave(`rooms.${options.roomId}`)
     echo?.leave(`rooms.${options.roomId}.typing`)
     echo?.leave(`rooms.${options.roomId}.presence`)
+    echo?.leave(`users.${options.userId}.rooms`)
     echo?.leave(`users.${options.userId}.unreads`)
     echo?.leave(`users.${options.userId}.reads`)
   },
@@ -96,19 +99,26 @@ Alpine.data("messageStream", (options) => ({
     if (!echo) return
 
     this.roomChannel = echo.private(`rooms.${options.roomId}`)
-      .listen(".message.posted", ({ message }) => this.receiveMessage(message))
-      .listen(".message.updated", ({ message }) => this.receiveMessage(message))
-      .listen(".message.deleted", ({ message }) => this.removeMessage(message))
-      .listen(".boost.added", (payload) => this.addBoost(payload.message_id, payload.boost))
-      .listen(".boost.removed", (payload) => this.removeBoost(payload.message_id, payload.boost.id))
+      .listen(".message.posted", ({ message }) => this.receiveMutation(() => this.receiveMessage(message)))
+      .listen(".message.updated", ({ message }) => this.receiveMutation(() => this.receiveMessage(message)))
+      .listen(".message.deleted", ({ message }) => this.receiveMutation(() => this.removeMessage(message)))
+      .listen(".boost.added", (payload) => this.receiveMutation(() => this.addBoost(payload.message_id, payload.boost)))
+      .listen(".boost.removed", (payload) => this.receiveMutation(() => this.removeBoost(payload.message_id, payload.boost.id)))
 
     this.typingChannel = echo.private(`rooms.${options.roomId}.typing`)
       .listen(".typing", (payload) => this.receiveTyping(payload))
     this.presenceChannel = echo.join(`rooms.${options.roomId}.presence`)
+    this.sidebarChannel = echo.private(`users.${options.userId}.rooms`)
+      .listen(".sidebar.changed", () => this.refreshSidebar())
     this.unreadChannel = echo.private(`users.${options.userId}.unreads`)
       .listen(".unread", ({ roomId }) => this.setRoomUnread(roomId, true))
     this.readChannel = echo.private(`users.${options.userId}.reads`)
       .listen(".read", ({ room_id: roomId }) => this.setRoomUnread(roomId, false))
+  },
+
+  receiveMutation(apply) {
+    this.mutationVersion++
+    apply()
   },
 
   async receiveMessage(message) {
@@ -167,7 +177,9 @@ Alpine.data("messageStream", (options) => ({
     element.dataset.messageTimestamp = Date.parse(message.created_at)
     element.dataset.messageUpdatedAt = Date.parse(message.updated_at)
     element.dataset.messageUrl = message.url
-    element.dataset.messageBody = message.body.html
+    if (typeof message.body.editable_html === "string") element.dataset.messageEditableBody = message.body.editable_html
+    else delete element.dataset.messageEditableBody
+    element.dataset.mentionIds = message.mentions.map(({ id }) => Number(id)).join(",")
     element.classList.remove("message--failed")
 
     const permalink = element.querySelector("[data-stream-part=permalink]")
@@ -339,7 +351,8 @@ Alpine.data("messageStream", (options) => ({
     form.append("boost[content]", content)
     try {
       const payload = await jsonResponse(await fetch(`/messages/${message.dataset.messageId}/boosts`, { method: "POST", headers: requestHeaders(), body: form }))
-      pending.replaceWith(this.boostElement(payload.boost))
+      this.addBoost(message.dataset.messageId, payload.boost)
+      pending.remove()
     } catch {
       pending.remove()
       this.streamError = "The boost was not saved."
@@ -358,15 +371,19 @@ Alpine.data("messageStream", (options) => ({
     }
   },
 
-  startEdit(message) {
+  async startEdit(message) {
     if (this.editing.has(message)) return
     const presentation = message.querySelector("[data-stream-part=presentation]")
     const original = presentation.cloneNode(true)
+    const restoreFocus = document.activeElement
+    const editableBody = await this.editableBody(message)
+    if (editableBody === null) return
     const editor = document.createElement("lexxy-editor")
     editor.className = "input lexxy-content"
     editor.setAttribute("aria-label", "Edit message")
     editor.setAttribute("autofocus", "")
-    editor.value = message.dataset.messageBody || presentation.querySelector(".lexxy-content")?.innerHTML || ""
+    editor.value = editableBody
+    editor.addEventListener("keydown", (event) => this.editKeydown(event, message))
 
     const actions = document.createElement("div")
     actions.className = "message__edit-btns"
@@ -382,8 +399,40 @@ Alpine.data("messageStream", (options) => ({
     cancel.textContent = "Cancel"
     actions.append(save, cancel)
     presentation.replaceChildren(editor, actions)
-    this.editing.set(message, original)
+    this.editing.set(message, { original, restoreFocus })
     this.$nextTick(() => editor.focus())
+  },
+
+  async editableBody(message) {
+    if (Object.hasOwn(message.dataset, "messageEditableBody")) return message.dataset.messageEditableBody
+
+    try {
+      const resource = await jsonResponse(await fetch(message.dataset.messageUrl, { headers: requestHeaders() }))
+      if (typeof resource?.body?.editable_html !== "string") throw new Error("Missing editable body")
+      message.dataset.messageEditableBody = resource.body.editable_html
+      return resource.body.editable_html
+    } catch {
+      this.streamError = "The message could not be opened for editing."
+      return null
+    }
+  },
+
+  editKeydown(event, message) {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      this.cancelEdit(message)
+    } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault()
+      message.querySelector("[data-stream-action=save-edit]")?.click()
+    }
+  },
+
+  cancelEdit(message) {
+    const state = this.editing.get(message)
+    if (!state) return
+    message.querySelector("[data-stream-part=presentation]").replaceWith(state.original)
+    this.editing.delete(message)
+    state.restoreFocus?.focus()
   },
 
   async handleEditAction(event) {
@@ -391,8 +440,7 @@ Alpine.data("messageStream", (options) => ({
     if (!action) return
     const message = action.closest("[data-message-id]")
     if (action.dataset.streamAction === "cancel-edit") {
-      message.querySelector("[data-stream-part=presentation]").replaceWith(this.editing.get(message))
-      this.editing.delete(message)
+      this.cancelEdit(message)
       return
     }
 
@@ -402,9 +450,11 @@ Alpine.data("messageStream", (options) => ({
     form.append("message[body]", editor.value)
     try {
       const updated = await jsonResponse(await fetch(message.dataset.messageUrl, { method: "POST", headers: requestHeaders(), body: form }))
+      const restoreFocus = this.editing.get(message)?.restoreFocus
       this.editing.delete(message)
       const resolved = await this.resolveMessage(updated)
       if (resolved) this.upsertMessage(resolved)
+      restoreFocus?.focus()
     } catch {
       this.streamError = "The message edit was not saved."
     }
@@ -465,19 +515,28 @@ Alpine.data("messageStream", (options) => ({
     const files = this.files.slice()
     if (!text && files.length === 0) return
 
+    try {
+      await this.ensureLatest()
+    } catch {
+      this.streamError = "The latest messages could not be loaded. Your draft was not sent."
+      return
+    }
+
+    const posts = []
+    if (text) posts.push(this.postMessage({ body, text }))
+    for (const file of files) posts.push(this.postMessage({ file, text: file.name }))
+
     this.files = []
     editor.value = ""
     localStorage.removeItem(this.draftKey)
     this.stopTyping()
     this.toolbarOpen = false
 
-    if (text) await this.postMessage({ body, text })
-    for (const file of files) await this.postMessage({ file, text: file.name })
+    await Promise.all(posts)
     editor.focus()
   },
 
   async postMessage({ body = "", text, file = null }) {
-    await this.ensureLatest()
     const clientId = safeId()
     const now = new Date().toISOString()
     const optimistic = {
@@ -579,7 +638,7 @@ Alpine.data("messageStream", (options) => ({
   connectionChanged(connected) {
     clearTimeout(this.offlineTimer)
     if (connected) {
-      if (this.connectedOnce && this.disconnectedAt) this.recover()
+      this.recover()
       this.connectedOnce = true
       this.disconnectedAt = null
       this.$refs.fields.disabled = false
@@ -601,14 +660,37 @@ Alpine.data("messageStream", (options) => ({
 
   async recover() {
     try {
-      const messages = await jsonResponse(await fetch(`/rooms/${options.roomId}/refresh?since=${this.lastUpdatedAt}`, { headers: requestHeaders() }))
-      for (const message of messages || []) {
-        const resolved = await this.resolveMessage(message)
-        if (resolved) this.upsertMessage(resolved)
-      }
+      let startedAt
+      do {
+        startedAt = this.mutationVersion
+        await this.replaceCurrentWindow(await this.authoritativeSnapshot())
+      } while (startedAt !== this.mutationVersion)
     } catch {
       this.streamError = "Messages could not be refreshed after reconnecting."
     }
+  },
+
+  async authoritativeSnapshot() {
+    const response = await fetch(`/rooms/${options.roomId}/messages`, { headers: requestHeaders() })
+    return response.status === 204 ? [] : await jsonResponse(response)
+  },
+
+  async replaceCurrentWindow(messages) {
+    const wasNearLatest = this.nearLatest()
+    const distanceFromBottom = this.$refs.messages.scrollHeight - this.$refs.messages.scrollTop
+    const optimistic = Array.from(this.$refs.messages.children).filter((message) => !Number(message.dataset.messageId))
+    this.$refs.messages.replaceChildren(...optimistic)
+    this.messagesById.clear()
+    this.messagesByClientId.clear()
+    this.lastUpdatedAt = 0
+    optimistic.forEach((message) => this.indexMessage(message))
+    this.upToDate = true
+    for (const message of messages) {
+      const resolved = await this.resolveMessage(message)
+      if (resolved) this.upsertMessage(resolved)
+    }
+    if (wasNearLatest) this.scrollToLatest(true)
+    else this.$refs.messages.scrollTop = Math.max(0, this.$refs.messages.scrollHeight - distanceFromBottom)
   },
 
   observeEdges() {
@@ -653,16 +735,7 @@ Alpine.data("messageStream", (options) => ({
 
   async ensureLatest() {
     if (this.upToDate) return
-    const response = await fetch(`/rooms/${options.roomId}/messages`, { headers: requestHeaders() })
-    const messages = response.status === 204 ? [] : await jsonResponse(response)
-    this.$refs.messages.replaceChildren()
-    this.messagesById.clear()
-    this.messagesByClientId.clear()
-    this.upToDate = true
-    for (const message of messages) {
-      const resolved = await this.resolveMessage(message)
-      if (resolved) this.upsertMessage(resolved)
-    }
+    await this.replaceCurrentWindow(await this.authoritativeSnapshot())
   },
 
   async returnToLatest() {
@@ -711,8 +784,18 @@ Alpine.data("messageStream", (options) => ({
       message.classList.toggle("message--first-of-day", firstOfDay)
       message.classList.toggle("message--threaded", Boolean(threaded))
       message.classList.toggle("message--me", Number(message.dataset.userId) === Number(options.userId))
-      message.classList.toggle("message--mentioned", message.querySelector(`.mention img[src^="/users/${options.userId}/avatar"]`) !== null)
+      const mentionIds = String(message.dataset.mentionIds || "").split(",").filter(Boolean).map(Number)
+      message.classList.toggle("message--mentioned", mentionIds.includes(Number(options.userId)))
       message.classList.add("message--formatted")
+      message.querySelectorAll("[data-stream-part=presentation] pre:not([data-highlighted])").forEach((block) => {
+        block.querySelectorAll("br").forEach((lineBreak) => lineBreak.replaceWith("\n"))
+        if (Array.from(block.childNodes).every((node) => node.nodeType === Node.TEXT_NODE)) {
+          const language = block.dataset.language
+          if (language && window.hljs?.getLanguage(language)) block.classList.add(`language-${language}`)
+          window.hljs?.highlightElement(block)
+        }
+        block.dataset.highlighted = "true"
+      })
       const dateElement = message.querySelector("[data-stream-time=date]")
       const timeElement = message.querySelector("[data-stream-time=time]")
       if (dateElement) dateElement.textContent = day.format(date)
@@ -728,13 +811,31 @@ Alpine.data("messageStream", (options) => ({
     return this.$refs.messages.scrollHeight - this.$refs.messages.scrollTop - this.$refs.messages.clientHeight <= 100
   },
 
-  setRoomUnread(roomId, unread) {
-    const room = document.querySelector(`[data-room-id="${Number(roomId)}"]`)
+  async setRoomUnread(roomId, unread) {
+    let room = document.querySelector(`[data-room-id="${Number(roomId)}"]`)
+    if (!room && unread) {
+      await this.refreshSidebar()
+      room = document.querySelector(`[data-room-id="${Number(roomId)}"]`)
+    }
     if (room && Number(roomId) !== Number(options.roomId)) room.classList.toggle("unread", unread)
     if (room && Number(roomId) === Number(options.roomId)) room.classList.remove("unread")
     const count = document.querySelectorAll("[data-room-id].unread").length
     if ("setAppBadge" in navigator && count > 0) navigator.setAppBadge(count)
     else if ("clearAppBadge" in navigator) navigator.clearAppBadge()
+  },
+
+  async refreshSidebar() {
+    try {
+      const response = await fetch("/users/me/sidebar", { headers: { "Accept": "text/html" } })
+      if (!response.ok) throw new Error(`Request failed (${response.status})`)
+      const template = document.createElement("template")
+      template.innerHTML = await response.text()
+      const sidebar = template.content.firstElementChild
+      if (!sidebar || sidebar.id !== "user_sidebar") throw new Error("Invalid sidebar")
+      document.querySelector("#user_sidebar")?.replaceWith(sidebar)
+    } catch {
+      this.streamError = "The room list could not be refreshed."
+    }
   },
 
   get editorBlank() {

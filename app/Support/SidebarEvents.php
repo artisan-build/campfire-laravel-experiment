@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Events\SidebarChanged;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -9,6 +10,10 @@ final class SidebarEvents
 {
     public function globalRemove(int $roomId): void
     {
+        if (config('campfire.json_message_stream')) {
+            return;
+        }
+
         DB::afterCommit(fn () => app(Broadcasting::class)->roomList('<turbo-stream action="remove" target="list_room_'.$roomId.'"></turbo-stream>'));
     }
 
@@ -16,6 +21,12 @@ final class SidebarEvents
     {
         DB::afterCommit(function () use ($userIds) {
             foreach (User::active()->whereIn('id', array_unique($userIds))->where('role', '!=', 2)->get() as $user) {
+                if (config('campfire.json_message_stream')) {
+                    SidebarChanged::dispatch($user->id);
+
+                    continue;
+                }
+
                 $memberships = $user->memberships()->where('involvement', '!=', 'invisible')->with('room.users')->get();
                 $directs = $memberships->filter(fn ($membership) => $membership->room->type === 'Rooms::Direct')->sortByDesc(fn ($membership) => $membership->room->updated_at);
                 $shared = $memberships->reject(fn ($membership) => $membership->room->type === 'Rooms::Direct')->sortBy(fn ($membership) => mb_strtolower($membership->room->name ?? ''));

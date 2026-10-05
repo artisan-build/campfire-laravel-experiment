@@ -7,6 +7,7 @@ use App\Events\BoostRemoved;
 use App\Events\MessageDeleted;
 use App\Events\MessagePosted;
 use App\Events\MessageUpdated;
+use App\Events\SidebarChanged;
 use App\Events\TurboStreamBroadcast;
 use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
@@ -14,6 +15,7 @@ use App\Models\Blob;
 use App\Models\Boost;
 use App\Models\Membership;
 use App\Models\Message;
+use App\Models\Room;
 use App\Models\User;
 use App\Support\MessageWriter;
 use App\Support\RailsCrypto;
@@ -138,6 +140,7 @@ final class JsonBroadcastingTest extends TestCase
         );
         $this->assertStringContainsString($tail, $resource['body']['plain_text']);
         $this->assertStringContainsString($tail, $resource['body']['html']);
+        $this->assertStringContainsString($tail, $resource['body']['editable_html']);
         $this->assertSame($author->id, $resource['creator']['id']);
         $this->assertSame('administrator', $resource['creator']['role']);
         $this->assertNotEmpty($resource['creator']['avatar_url']);
@@ -230,6 +233,32 @@ final class JsonBroadcastingTest extends TestCase
         $this->assertJsonMutationEvents($room->id, $message->id, $boost->id, (string) $message->client_message_id);
     }
 
+    public function test_default_sidebar_changes_emit_only_a_small_json_signal(): void
+    {
+        [$author] = $this->fixture();
+        $other = User::create(['name' => 'Sidebar Member', 'role' => 0, 'status' => 0]);
+        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        $this->auth($author);
+
+        $this->post('/rooms/closeds', [
+            'room' => ['name' => 'Signal Room'],
+            'user_ids' => [$author->id, $other->id],
+        ])->assertRedirect();
+
+        Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $author->id
+            && $event->broadcastAs() === 'sidebar.changed'
+            && $event->broadcastWith() === ['refresh' => true]);
+        Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $other->id);
+        Event::assertNotDispatched(TurboStreamBroadcast::class);
+        $this->assertContains(ShouldBroadcastNow::class, class_implements(SidebarChanged::class));
+
+        $room = Room::where('name', 'Signal Room')->firstOrFail();
+        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        $this->delete('/rooms/closeds/'.$room->id)->assertRedirect();
+        Event::assertDispatched(SidebarChanged::class);
+        Event::assertNotDispatched(TurboStreamBroadcast::class);
+    }
+
     private function fakeBroadcasts(): void
     {
         Event::fake([
@@ -273,7 +302,8 @@ final class JsonBroadcastingTest extends TestCase
                 ['id', 'client_message_id', 'created_at', 'updated_at', 'body', 'creator', 'room', 'url', 'attachment', 'boosts', 'mentions'],
                 array_values(array_intersect(array_keys($resource), ['id', 'client_message_id', 'created_at', 'updated_at', 'body', 'creator', 'room', 'url', 'attachment', 'boosts', 'mentions'])),
             );
-            $this->assertSame(['plain_text', 'html', 'truncated'], array_keys($resource['body']));
+            $this->assertSame(['plain_text', 'html', 'editable_html', 'truncated'], array_keys($resource['body']));
+            $this->assertNull($resource['body']['editable_html']);
             $this->assertTrue($resource['body']['truncated']);
             $this->assertLessThanOrEqual($budget, strlen(json_encode(['message' => $resource], JSON_THROW_ON_ERROR)));
         }

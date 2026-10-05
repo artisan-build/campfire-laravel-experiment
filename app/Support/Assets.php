@@ -23,6 +23,7 @@ final class Assets
 
         if ($jsonStream) {
             $imports['imports']['application'] = 'ASSET:campfire/application_json.js';
+            $imports['imports']['campfire/confirm'] = 'ASSET:campfire/confirm.js';
             $imports['imports']['campfire/message_stream'] = 'ASSET:campfire/message_stream.js';
 
             foreach ([
@@ -45,7 +46,6 @@ final class Assets
                 'controllers/turbo_streaming_controller',
                 'controllers/typing_notifications_controller',
                 'models/client_message',
-                'models/message_formatter',
                 'models/message_paginator',
                 'models/scroll_manager',
                 'models/typing_tracker',

@@ -20,7 +20,7 @@
 @if(config('campfire.json_message_stream'))
 <div id="message-area" class="message-area" contents @dragenter.prevent @dragover.prevent @drop="dropFiles($event)" data-testid="room-message-stream">
     <template x-ref="messageTemplate" data-testid="room-message-template">
-        <article class="message" data-message-id="" data-client-message-id="" data-user-id="" data-message-timestamp="" data-message-updated-at="" data-message-url="">
+        <article class="message" data-message-id="" data-client-message-id="" data-user-id="" data-message-timestamp="" data-message-updated-at="" data-message-url="" data-mention-ids="">
             <h2 class="message__day-separator"><time data-stream-time="date"></time></h2>
             <figure class="avatar message__avatar"><a class="btn avatar" data-stream-part="author-link"><img width="48" height="48" alt="" data-stream-part="avatar"></a></figure>
             <div class="message__body"><div class="message__body-content"><div class="message__meta"><h3 class="message__heading"><span class="message__author"><strong data-stream-part="author"></strong></span><a class="message__permalink" data-stream-part="permalink"><time class="message__timestamp" data-stream-time="time"></time></a><span class="message__room" data-stream-part="room"></span></h3>

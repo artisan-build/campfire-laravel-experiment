@@ -194,8 +194,8 @@ docker run --rm -p 8080:80 \
 
 Postgres is required. `APP_KEY` is generated on first boot and kept in the mounted volume's `.env`;
 `HTTP_PORT` changes the listening port. The image runs nginx, PHP-FPM and a queue worker. Without
-Reverb configured the app falls back to Turbo's own refresh-on-reconnect and still works, just not
-instantly.
+Reverb configured, pages and HTTP mutations still work, but cross-tab message, typing, unread and
+sidebar updates require a reload. The default frontend does not silently fall back to Turbo.
 
 ## Development and tests
 
@@ -226,9 +226,20 @@ committed asset when frontend source changes.
 - **Search tokenises differently.** Postgres keeps `pixel.png` whole where FTS5's porter tokenizer
   split it, so the indexed text and the query both go through one normaliser
   (`app/Support/Search.php`). Punctuation is not searchable.
-- **Broadcast fragments are compressed.** A managed Reverb application caps a frame at 10 000 bytes
-  and one rendered message is about 9 000 bytes of HTML, so a fragment past the budget is gzipped and
-  the client inflates it. Anything still too large becomes a pointer the client resolves over HTTP.
+- **Room mutations use bounded JSON.** The default frontend broadcasts `MessageResource` data for
+  posts and edits plus small JSON delete/boost events. Oversized resources carry a bounded sanitized
+  preview and an HTTP fetch-required marker; active frames never use Turbo HTML, gzip or pointers.
+  The temporary `campfire.json_message_stream=false` rollback path retains those legacy encodings
+  until PR9, but it is neither imported nor broadcast while the default is active.
+- **Turbo navigation behavior is temporarily absent.** The default nodeless Alpine path does not
+  provide Turbo prefetch, view transitions or restoration visits. The false-flag rollback path keeps
+  them until PR9.
+- **PR5 browser proof is pending.** The committed two-context harness at
+  `tests/Browser/pr5-json-stream.mjs` covers the JSON mutation, reconnect, sidebar, media, responsive
+  and frame-confidentiality matrix, but branch-head and post-merge managed-Reverb runs remain required.
+- **Message presentation residue remains.** Socket-created `/play` messages do not synthesize the
+  legacy sound widget or autoplay; local timestamps lack the old full-timestamp hover text; custom
+  boosts use the native prompt; and some inactive legacy data hooks remain for rollback.
 - **Presence is HTTP-driven.** A managed Reverb cannot call the app, so the browser reports presence
   and a stale entry expires after 60 seconds, as it already did upstream.
 - `campfire:backup` is gone. Cloud snapshots Postgres and the bucket holds the uploads.

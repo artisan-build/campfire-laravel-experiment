@@ -66,6 +66,7 @@ final class MessageResource extends JsonResource
             'body' => [
                 'plain_text' => $message->plainText(),
                 'html' => $renderer->html($storedBody),
+                'editable_html' => $storedBody,
                 'truncated' => false,
             ],
             'creator' => self::userArray($message->creator, true),
@@ -108,6 +109,7 @@ final class MessageResource extends JsonResource
             $message['body'] = [
                 'plain_text' => $preview,
                 'html' => $preview === '' ? '' : '<p>'.e($preview).'</p>',
+                'editable_html' => null,
                 'truncated' => true,
             ];
 
