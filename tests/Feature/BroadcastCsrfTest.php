@@ -162,10 +162,20 @@ final class BroadcastCsrfTest extends TestCase
         $this->auth($author);
         $this->get('/rooms/'.$room->id)->assertOk();
 
+        $bodies = [];
         foreach ([20, 200, 400, 600, 800, 2000] as $length) {
+            $bodies['plain-'.$length] = str_repeat('a', $length);
+        }
+        // Escape-heavy content inflates the frame far faster than it inflates the fragment: an emoji
+        // is 4 bytes of HTML and 24 bytes of twice-escaped frame. This is the case that decides the
+        // budget — at 8 000 the fragment looks like it fits and the frame does not.
+        $bodies['emoji-150'] = str_repeat('\u{1F525}', 150);
+        $bodies['quoted-40'] = str_repeat('He said "ok". ', 40);
+
+        foreach ($bodies as $label => $body) {
             $this->forget();
             $this->post('/rooms/'.$room->id.'/messages', [
-                'message' => ['body' => '<p>'.str_repeat('a', $length).'</p>', 'client_message_id' => 'cid'.$length],
+                'message' => ['body' => '<p>'.$body.'</p>', 'client_message_id' => 'cid-'.$label],
             ])->assertOk();
 
             foreach ($this->broadcasts as $broadcast) {
@@ -177,7 +187,7 @@ final class BroadcastCsrfTest extends TestCase
                     'channel' => 'private-'.$broadcast->channel,
                     'data' => json_encode($broadcast->broadcastWith()),
                 ]));
-                $this->assertLessThan(10000, $frame, 'a '.$length.'-character message produced a '.$frame.'-byte frame');
+                $this->assertLessThan(10000, $frame, $label.' produced a '.$frame.'-byte frame');
             }
         }
     }
