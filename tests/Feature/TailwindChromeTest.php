@@ -131,6 +131,23 @@ final class TailwindChromeTest extends TestCase
         $this->assertSame("sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'", $sidebar->attributes->getNamedItem(':class')?->nodeValue);
     }
 
+    public function test_json_room_does_not_activate_the_legacy_sidebar_body_layout(): void
+    {
+        [$user, $room] = $this->fixture();
+        $this->auth($user);
+
+        $document = $this->document($this->get('/rooms/'.$room->id)->assertOk());
+        $body = (new DOMXPath($document))->query('//body')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $body);
+        $this->assertNotContains('sidebar', preg_split('/\s+/', $body->getAttribute('class')));
+
+        config(['campfire.json_message_stream' => false]);
+        $legacyDocument = $this->document($this->get('/rooms/'.$room->id)->assertOk());
+        $legacyBody = (new DOMXPath($legacyDocument))->query('//body')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $legacyBody);
+        $this->assertContains('sidebar', preg_split('/\s+/', $legacyBody->getAttribute('class')));
+    }
+
     public function test_retained_local_time_controller_owns_existing_and_optimistic_timestamps(): void
     {
         [$user, $room] = $this->fixture();

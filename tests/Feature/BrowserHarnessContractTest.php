@@ -19,9 +19,14 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringNotContainsString('writeFileSync(outputPath, payload', $source);
         $this->assertStringContainsString('page.locator(\'form[action="/session"]\').getByRole("button", { name: "Sign in", exact: true }).click()', $source);
         $this->assertStringNotContainsString('page.locator(\'button[type="submit"]\').click()', $source);
+        $this->assertStringContainsString('page.locator(\'#message_body [contenteditable="true"]\').press(', $source);
+        $this->assertStringNotContainsString('page.locator("#message_body").press(', $source);
+        $this->assertStringContainsString('socket.connectToServer()', $source);
+        $this->assertStringNotContainsString('unrouteWebSocket', $source);
 
         foreach ([
             'post and optimistic reconciliation',
+            'message surface fills desktop and phone viewport',
             'keyboard edit and focus restoration',
             'escape cancels edit',
             'boost add remove and failed rollback',

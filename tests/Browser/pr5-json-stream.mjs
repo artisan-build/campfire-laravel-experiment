@@ -90,7 +90,7 @@ async function setEditor(page, value) {
 
 async function post(page, text, keyboard = false) {
   await setEditor(page, `<p>${text}</p>`)
-  if (keyboard) await page.locator("#message_body").press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
+  if (keyboard) await page.locator('#message_body [contenteditable="true"]').press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
   else await page.locator('[data-testid="room-json-composer"] button[type="submit"]').click()
   await page.locator("[data-message-id]", { hasText: text }).waitFor()
 }
@@ -105,7 +105,7 @@ async function edit(page, oldText, newText, keyboard = true) {
   await row.locator('[data-stream-action="edit"]').click()
   const editor = row.locator("lexxy-editor")
   await editor.evaluate((element, body) => { element.value = `<p>${body}</p>` }, newText)
-  if (keyboard) await editor.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
+  if (keyboard) await editor.locator('[contenteditable="true"]').press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
   else await row.locator('[data-stream-action="save-edit"]').click()
   await message(page, newText).waitFor()
 }
@@ -148,6 +148,25 @@ try {
   const token = Date.now().toString(36)
   const posted = `pr5-post-${token}`
   const edited = `pr5-edit-${token}`
+
+  await check("message surface fills desktop and phone viewport", async () => {
+    for (const [label, page] of [["desktop", userA], ["phone", userB]]) {
+      const layout = await page.evaluate(() => {
+        const rect = (element) => {
+          const { top, right, bottom, left, width, height } = element.getBoundingClientRect()
+          return { top, right, bottom, left, width, height }
+        }
+        const main = rect(document.querySelector("#main-content"))
+        const composer = rect(document.querySelector('[data-testid="room-composer"]'))
+        const sidebar = rect(document.querySelector('[data-testid="app-sidebar"]'))
+        return { viewport: { width: innerWidth, height: innerHeight }, main, composer, sidebar }
+      })
+      if (layout.main.height < layout.viewport.height / 2) throw new Error(`${label} message surface height is ${layout.main.height}`)
+      if (layout.composer.top < layout.main.top || layout.composer.bottom > layout.viewport.height + 1) throw new Error(`${label} composer is outside the message surface`)
+      if (layout.sidebar.width > layout.viewport.width * 0.9 + 1) throw new Error(`${label} sidebar exceeds responsive width`)
+      if (label === "desktop" && (layout.sidebar.left < layout.main.right - 1 || layout.sidebar.right > layout.viewport.width + 1)) throw new Error("Desktop sidebar is not beside the message surface")
+    }
+  })
 
   await check("post and optimistic reconciliation", async () => {
     await post(userA, posted, true)
@@ -274,12 +293,21 @@ try {
   await check("first connection convergence", async () => {
     const delayed = await desktop.newPage()
     recordFrames(delayed, "first-connect")
-    if (typeof delayed.routeWebSocket !== "function" || typeof delayed.unrouteWebSocket !== "function") throw new Error("Installed Playwright lacks WebSocket routing")
-    await delayed.routeWebSocket("**", (socket) => socket.close())
+    if (typeof delayed.routeWebSocket !== "function") throw new Error("Installed Playwright lacks WebSocket routing")
+    let rejectedFirstSocket = false
+    await delayed.routeWebSocket("**", (socket) => {
+      if (!rejectedFirstSocket) {
+        rejectedFirstSocket = true
+        socket.close()
+      } else {
+        socket.connectToServer()
+      }
+    })
     await delayed.goto(roomUrl)
+    await delayed.waitForTimeout(500)
+    if (!rejectedFirstSocket) throw new Error("First WebSocket attempt was not intercepted")
     const missed = `pr5-first-connect-${token}`
     await post(userA, missed)
-    await delayed.unrouteWebSocket("**")
     await delayed.evaluate(() => window.dispatchEvent(new Event("online")))
     await message(delayed, missed).waitFor({ timeout: 15_000 })
     await delayed.close()

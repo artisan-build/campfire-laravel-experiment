@@ -1,4 +1,4 @@
-@extends('layouts.app',['title'=>$room->displayName($currentUser),'bodyClass'=>'sidebar'])
+@extends('layouts.app',['title'=>$room->displayName($currentUser),'bodyClass'=>config('campfire.json_message_stream') ? '' : 'sidebar'])
 @section('head')
 <meta name="current-room-id" content="{{ $room->id }}">
 @unless(config('campfire.json_message_stream'))<meta name="turbo-cache-control" content="no-preview">@endunless
