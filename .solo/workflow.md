@@ -17,7 +17,8 @@ that means replacing upstream code wholesale. Record every such replacement and 
   shapes, Hotwire/importmap and the Rails asset build are all on the table.
 - **Work in BRANCHES with PRs** (Ed, 2026-10-05). One concern per branch. Never commit to `main` directly (the one exception is the
   presence-without-polling pass that was already in flight on main when this changed).
-- Merge policy: **PENDING Ed's answer (human review vs gate on CI).** Until it's recorded here: open the PR, get CI green, do NOT merge.
+- Merge policy: **merge on green CI** (Ed, 2026-10-05). Squash-merge once every required CI check passes on the PR head. A
+  PR whose brief says "do not merge" overrides this.
 - Deploy target: the Artisan Build Laravel Cloud org. Ed has pre-authorised creating and deploying this experiment's OWN
   Cloud app and its resources. Nothing else in the org may be touched (the Rails and Rust Campfire apps are read-only).
 
