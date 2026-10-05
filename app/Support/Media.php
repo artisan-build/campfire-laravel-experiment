@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Blob;
 use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\Drivers\Imagick\Driver as ImagickDriver;
+use Intervention\Image\Exceptions\DecoderException;
 use Intervention\Image\ImageManager;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\ExecutableFinder;
@@ -76,7 +77,14 @@ final class Media
                 abort(422);
             }
 
-            $image = $this->manager()->read($source)->scaleDown($width, $height);
+            try {
+                $image = $this->manager()->read($source)->scaleDown($width, $height);
+            } catch (DecoderException $error) {
+                // A file the browser called an image that the imaging library cannot read. Upstream's
+                // libvips accepted some of these; refusing the upload with 422 beats a 500.
+                abort(422, 'That image could not be read.');
+            }
+
             $encoded = match ($format) {
                 'png' => $image->toPng(),
                 'jpeg' => $image->toJpeg(85),

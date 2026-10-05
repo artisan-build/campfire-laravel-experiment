@@ -339,4 +339,25 @@ final class CampfireTest extends TestCase
 
         $this->get(app(BlobStorage::class)->url($blob))->assertNotFound();
     }
+
+    public function test_an_undecodable_image_is_refused_with_422_not_a_500(): void
+    {
+        [$user, $room] = $this->fixture();
+        $this->auth($user);
+        $source = tempnam(sys_get_temp_dir(), 'broken').'.png';
+        // A PNG header the browser will call image/png and no imaging library can decode.
+        file_put_contents($source, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aY2kAAAAASUVORK5CYII='));
+
+        try {
+            $this->post('/rooms/'.$room->id.'/messages', [
+                'message' => ['body' => '', 'attachment' => new UploadedFile($source, 'broken.png', 'image/png', null, true)],
+            ])->assertStatus(422);
+
+            $this->assertDatabaseCount('messages', 0);
+            $this->assertDatabaseCount('active_storage_blobs', 0);
+            $this->assertSame([], Storage::disk('local')->allFiles('blobs'));
+        } finally {
+            @unlink($source);
+        }
+    }
 }

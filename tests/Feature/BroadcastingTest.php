@@ -6,7 +6,9 @@ use App\Events\RoomRead;
 use App\Events\RoomUnread;
 use App\Events\TurboStreamBroadcast;
 use App\Events\TypingNotification;
+use App\Http\Controllers\ChatController;
 use App\Models\Membership;
+use App\Models\Message;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\MessageWriter;
@@ -58,15 +60,37 @@ final class BroadcastingTest extends TestCase
         Event::assertDispatched(TurboStreamBroadcast::class, fn (TurboStreamBroadcast $e) => str_contains($e->html, 'action="remove"'));
     }
 
-    public function test_an_oversized_fragment_broadcasts_a_pointer_instead_of_html(): void
+    public function test_a_fragment_is_sent_inline_then_gzipped_then_as_a_pointer(): void
     {
-        config(['campfire.broadcast_payload_limit' => 64]);
+        config(['campfire.broadcast_payload_limit' => 2000]);
 
-        $small = new TurboStreamBroadcast('rooms.1', '<turbo-stream></turbo-stream>', 1);
-        $large = new TurboStreamBroadcast('rooms.1', str_repeat('x', 200), 1);
+        $inline = (new TurboStreamBroadcast('rooms.1', '<turbo-stream></turbo-stream>', 1))->broadcastWith();
+        $this->assertSame(['html' => '<turbo-stream></turbo-stream>'], $inline);
 
-        $this->assertSame(['html' => '<turbo-stream></turbo-stream>'], $small->broadcastWith());
-        $this->assertSame(['oversize' => true, 'roomId' => 1], $large->broadcastWith());
+        // Repetitive HTML is past the limit raw and well under it compressed.
+        $html = str_repeat('<turbo-stream action="append" target="messages_room_1"></turbo-stream>', 200);
+        $compressed = (new TurboStreamBroadcast('rooms.1', $html, 1))->broadcastWith();
+        $this->assertArrayHasKey('gz', $compressed);
+        $this->assertLessThanOrEqual(2000, strlen($compressed['gz']));
+        $this->assertSame($html, gzdecode(base64_decode($compressed['gz'])));
+
+        // Incompressible and past the limit: nothing left but a pointer.
+        $pointer = (new TurboStreamBroadcast('rooms.1', random_bytes(4096), 1))->broadcastWith();
+        $this->assertSame(['oversize' => true, 'roomId' => 1], $pointer);
+    }
+
+    public function test_a_real_message_fragment_fits_in_a_reverb_frame_once_compressed(): void
+    {
+        [$author, $room] = $this->fixture();
+        app(MessageWriter::class)->create($room, $author, ['body' => '<p>A message of ordinary length, the kind people actually send.</p>']);
+        $message = Message::presentation()->first();
+        $html = app(ChatController::class)->stream('append', 'messages_room_'.$room->id, view('messages.message', ['message' => $message])->render());
+
+        $payload = (new TurboStreamBroadcast('rooms.'.$room->id, $html, $room->id))->broadcastWith();
+
+        // Reverb's managed application caps a frame at 10 000 bytes.
+        $this->assertLessThan(10000, strlen(json_encode($payload)));
+        $this->assertArrayNotHasKey('oversize', $payload);
     }
 
     public function test_the_typing_endpoint_broadcasts_only_for_members(): void

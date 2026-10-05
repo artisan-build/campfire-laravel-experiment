@@ -23,8 +23,22 @@ class TurboEchoStreamSourceElement extends HTMLElement {
       return
     }
 
-    // Over Reverb's per-message size limit. Ask for what we missed instead.
+    // Gzipped, because one rendered message does not fit in a Reverb frame uncompressed.
+    if (payload?.gz) {
+      this.#inflate(payload.gz)
+        .then((html) => Turbo.renderStreamMessage(html))
+        .catch(() => this.#recover())
+      return
+    }
+
+    // Too large even compressed. Ask for what we missed instead.
     if (payload?.oversize) this.#recover()
+  }
+
+  async #inflate(encoded) {
+    const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0))
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))
+    return await new Response(stream).text()
   }
 
   #recover() {
