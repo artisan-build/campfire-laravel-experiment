@@ -15,7 +15,7 @@ final class AssetHeadTest extends TestCase
         $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true);
         $response = $this->get('/session/new')->assertOk();
         $document = new DOMDocument;
-        $document->loadHTML($response->getContent());
+        $document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
         $links = (new DOMXPath($document))->query('//head/link[@rel="stylesheet"]');
 
         $this->assertNotFalse($links);
