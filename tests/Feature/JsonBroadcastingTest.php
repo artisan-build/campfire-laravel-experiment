@@ -88,10 +88,12 @@ final class JsonBroadcastingTest extends TestCase
             'created_at' => now(),
         ]);
 
+        $boostIds = [];
         foreach (range(1, 10) as $number) {
             $booster = User::create(['name' => 'Budget Booster '.$number, 'role' => 0, 'status' => 0]);
-            Boost::create(['message_id' => $message->id, 'booster_id' => $booster->id, 'content' => 'boost-'.$number]);
+            $boostIds[] = Boost::create(['message_id' => $message->id, 'booster_id' => $booster->id, 'content' => 'boost-'.$number])->id;
         }
+        sort($boostIds);
 
         $resource = (new MessageResource($message->fresh()))->resolve(new Request);
         $eventPayload = (new MessagePosted($message->fresh()))->broadcastWith();
@@ -114,7 +116,7 @@ final class JsonBroadcastingTest extends TestCase
         $this->assertNotEmpty($resource['attachment']['representation_url']);
         $this->assertSame(4096, $resource['attachment']['byte_size']);
         $this->assertCount(10, $resource['boosts']);
-        $this->assertSame(range(1, 10), array_column($resource['boosts'], 'id'));
+        $this->assertSame($boostIds, array_column($resource['boosts'], 'id'));
         $this->assertSame([['id' => $mentioned->id, 'name' => $mentioned->name]], $resource['mentions']);
 
         $this->assertTrue($broadcastMessage['body']['truncated']);
