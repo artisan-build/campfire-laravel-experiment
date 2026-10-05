@@ -1,6 +1,8 @@
 <?php
 
+use App\Jobs\ReportRuntime;
 use App\Support\BlobStorage;
+use App\Support\FfmpegRuntime;
 use App\Support\Media;
 use App\Support\Presence;
 use Illuminate\Support\Facades\Artisan;
@@ -20,10 +22,49 @@ Artisan::command('campfire:install', function () {
 })->purpose('Run the migrations needed to serve Campfire');
 
 /**
+ * Vendor ffmpeg and ffprobe into the deploy artifact.
+ *
+ * Laravel Cloud's PHP runtime has neither, so this runs in the BUILD step:
+ *
+ *     cloud environment:update production --force \
+ *         --build-command="<the existing command> && php artisan campfire:provision-ffmpeg"
+ *
+ * The build log is NOT evidence that it worked — the Rust sibling's bundle appeared to install and
+ * then never reached the application. Verify with campfire:doctor on the instance.
+ */
+Artisan::command('campfire:provision-ffmpeg {--force}', function (): int {
+    $runtime = FfmpegRuntime::make();
+
+    if (! $this->option('force') && $runtime->provisioned()) {
+        $this->info('ffmpeg is already installed at '.$runtime->directory().'; pass --force to reinstall.');
+
+        return 0;
+    }
+
+    try {
+        $result = $runtime->install();
+    } catch (Throwable $error) {
+        $this->error($error->getMessage());
+
+        return 1;
+    }
+
+    $this->table(['what', 'value'], [
+        ['asset', $result['asset']],
+        ['extracted', sprintf('%.1f MB', $result['extracted'] / 1024 / 1024)],
+        ['installed', sprintf('%.1f MB', $result['installed'] / 1024 / 1024)],
+        ['ffmpeg', $runtime->path('ffmpeg')],
+        ['ffprobe', $runtime->path('ffprobe')],
+    ]);
+
+    return 0;
+})->purpose('Install the pinned static ffmpeg/ffprobe into the application root');
+
+/**
  * What this instance actually resolved, and whether each resource answers. Prints names and never a
  * credential, so it is safe to run anywhere and paste the output.
  */
-Artisan::command('campfire:doctor', function () {
+Artisan::command('campfire:doctor {--queue : Also report what a QUEUE WORKER resolved, which on Cloud is a different host}', function () {
     $rows = [
         ['instance', gethostname()],
         ['php', PHP_VERSION],
@@ -79,4 +120,43 @@ Artisan::command('campfire:doctor', function () {
     }
 
     $this->table(['what', 'value'], $rows);
+
+    if (! $this->option('queue')) {
+        return 0;
+    }
+
+    // Cloud's managed queue runs jobs off this container, and DeliverMessageNotifications reaches
+    // ffmpeg whenever a bot's webhook replies with video, so "ffmpeg is here" is only half an answer.
+    $token = bin2hex(random_bytes(8));
+    ReportRuntime::dispatch($token);
+    $deadline = microtime(true) + 60;
+    $report = null;
+
+    while (microtime(true) < $deadline) {
+        $report = Cache::get(ReportRuntime::cacheKey($token));
+
+        if ($report !== null) {
+            break;
+        }
+
+        usleep(500_000);
+    }
+
+    if ($report === null) {
+        $this->error('No queue worker answered within 60s. Either none is running, or it cannot reach the cache.');
+
+        return 1;
+    }
+
+    $this->newLine();
+    $this->table(['what the WORKER resolved', 'value'], [
+        ['worker host', $report['host'].(($report['host'] === gethostname()) ? ' (the same host as above)' : ' (a different host)')],
+        ['worker php', $report['php']],
+        ['worker base path', $report['base_path']],
+        ['worker ffmpeg', $report['ffmpeg'] ?? 'absent (a bot video reply would get no poster)'],
+        ['worker ffprobe', $report['ffprobe'] ?? 'absent (a bot video reply would get no metadata)'],
+        ['reported at', $report['reported_at']],
+    ]);
+
+    return 0;
 })->purpose('Report the drivers this instance resolved and whether each resource answers');

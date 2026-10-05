@@ -67,6 +67,63 @@ jobs:
       - name: Run tests
         run: composer test
 
+  ffmpeg:
+    # linux/arm64, because that is the architecture Laravel Cloud's runtime is and the pinned asset
+    # is per-architecture. Provisioning on x86 would prove the wrong binary works.
+    name: ffmpeg (linux/arm64)
+    runs-on: ubuntu-24.04-arm
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: campfire
+          POSTGRES_DB: campfire_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campfire"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: imagick, pdo_pgsql, pgsql, gd, intl, zip, bcmath
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      - name: Provision the pinned ffmpeg runtime
+        run: php artisan campfire:provision-ffmpeg
+
+      - name: Report what it cost
+        run: du -sh runtime/ffmpeg/bin && du -h runtime/ffmpeg/bin/ffmpeg runtime/ffmpeg/bin/ffprobe
+
+      # The binaries have to be reachable through the application, not merely present on disk: the
+      # Rust sibling's bundle installed fine and was never actually found.
+      - name: Report what the application resolved
+        run: php artisan campfire:doctor
+
+      - name: Run the video poster tests against the vendored runtime
+        run: vendor/bin/phpunit --group ffmpeg --do-not-cache-result
+
   pint:
     name: pint
     runs-on: ubuntu-latest

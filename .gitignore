@@ -29,3 +29,6 @@ Thumbs.db
 /storage/vapid.json
 /storage/events.log
 /storage/cable.pid
+
+# campfire:provision-ffmpeg installs the vendored ffmpeg here during the build step.
+/runtime
