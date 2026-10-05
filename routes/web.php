@@ -55,7 +55,6 @@ Route::middleware('campfire.auth')->group(function () {
     Route::delete('/rooms/{room}/messages/{id}', [ChatController::class, 'destroy'])->whereNumber(['room', 'id']);
     Route::get('/rooms/{room}/refresh', [ChatController::class, 'refresh'])->whereNumber('room');
     Route::get('/users/{user}/sidebar', [ChatController::class, 'sidebar']);
-    Route::post('/rooms/{room}/presence', [RealtimeController::class, 'presence'])->whereNumber('room');
     Route::post('/rooms/{room}/typing', [RealtimeController::class, 'typing'])->whereNumber('room');
     Route::get('/searches', [ChatController::class, 'search']);
     Route::post('/searches', [ChatController::class, 'recordSearch']);

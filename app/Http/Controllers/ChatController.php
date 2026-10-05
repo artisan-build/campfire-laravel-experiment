@@ -32,6 +32,7 @@ final class ChatController extends Controller
             $messages = $query->orderByDesc('created_at')->limit(40)->get()->reverse();
         }
         $r->session()->put('last_room_id', $room->id);
+        $this->markRead($r->user()->id, $room->id);
 
         return response()->view('rooms.show', compact('room', 'messages'))->withCookie(cookie('last_room', (string) $room->id, 60 * 24 * 365 * 20));
     }
@@ -162,6 +163,21 @@ final class ChatController extends Controller
         }
 
         return response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
+    }
+
+    /**
+     * Opening a room clears its unread mark and tells the member's other tabs.
+     *
+     * Upstream did this when the presence socket said "present", which cost a request of its own.
+     * It rides the page load now, so an idle tab never has to say anything.
+     */
+    private function markRead(int $userId, int $roomId): void
+    {
+        $cleared = DB::table('memberships')->where('user_id', $userId)->where('room_id', $roomId)->whereNotNull('unread_at')->update(['unread_at' => null, 'updated_at' => now()]);
+
+        if ($cleared > 0) {
+            app(Broadcasting::class)->read($userId, $roomId);
+        }
     }
 
     public function findRoom(Request $r, int $id): Room

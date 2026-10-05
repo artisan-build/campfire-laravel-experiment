@@ -12,7 +12,6 @@ use App\Models\User;
 use App\Support\BlobStorage;
 use App\Support\Media;
 use App\Support\MessageWriter;
-use App\Support\Presence;
 use App\Support\RailsCrypto;
 use App\Support\RichTextRenderer;
 use Illuminate\Http\UploadedFile;
@@ -271,43 +270,40 @@ final class CampfireTest extends TestCase
         $this->assertSame([$messages[2]->id], array_column($after, 'id'));
     }
 
-    public function test_presence_refresh_visibility_and_multiple_tabs_preserve_read_contract(): void
+    public function test_opening_a_room_clears_its_unread_mark_and_tells_the_members_other_tabs(): void
     {
         [$user, $room] = $this->fixture();
-        Event::fake([RoomRead::class]);
-        $presence = app(Presence::class);
         $membership = $room->memberships()->first();
         $membership->update(['unread_at' => now()]);
-        $this->travelTo(now()->startOfSecond());
-        try {
-            $presence->present($user->id, $room->id);
-            $presence->present($user->id, $room->id);
-            $this->assertSame(2, $membership->fresh()->connections);
-            $this->assertNull($membership->fresh()->unread_at);
-            Event::assertDispatched(RoomRead::class, fn (RoomRead $event) => $event->userId === $user->id && $event->roomId === $room->id);
-            $this->travel(50)->seconds();
-            $presence->refresh($user->id, $room->id);
-            $this->assertSame(2, $membership->fresh()->connections);
-            $this->assertSame(now()->getTimestamp(), strtotime($membership->fresh()->connected_at));
-            $presence->absent($user->id, $room->id);
-            $this->assertSame(1, $membership->fresh()->connections);
-            $this->assertNotNull($membership->fresh()->connected_at);
-            $presence->absent($user->id, $room->id);
-            $this->assertSame(0, $membership->fresh()->connections);
-            $this->assertNull($membership->fresh()->connected_at);
-            $presence->present($user->id, $room->id);
-            $this->travel(61)->seconds();
-            $presence->refresh($user->id, $room->id);
-            $this->assertSame(1, $membership->fresh()->connections);
-            $this->travel(61)->seconds();
-            $presence->present($user->id, $room->id);
-            $this->assertSame(1, $membership->fresh()->connections);
-            $this->travel(61)->seconds();
-            $presence->absent($user->id, $room->id);
-            $this->assertSame(0, $membership->fresh()->connections);
-        } finally {
-            $this->travelBack();
-        }
+        $this->auth($user);
+        Event::fake([RoomRead::class]);
+
+        $this->get('/rooms/'.$room->id)->assertOk();
+
+        $this->assertNull($membership->fresh()->unread_at);
+        Event::assertDispatched(RoomRead::class, fn (RoomRead $event) => $event->userId === $user->id && $event->roomId === $room->id);
+
+        // Nothing to clear the second time, so nothing is broadcast.
+        Event::fake([RoomRead::class]);
+        $this->get('/rooms/'.$room->id)->assertOk();
+        Event::assertNotDispatched(RoomRead::class);
+    }
+
+    public function test_the_browser_has_no_timer_that_calls_the_app(): void
+    {
+        // The measured cause of compute never sleeping was a fifty-second presence POST from every
+        // open tab. The consumer must not reinstate it: presence is read from Reverb instead.
+        $consumer = file_get_contents(public_path('assets/campfire/echo/consumer.js'));
+
+        $this->assertStringNotContainsString('setInterval', $consumer);
+        $this->assertStringNotContainsString('setTimeout', $consumer);
+        $this->assertStringNotContainsString('/presence', $consumer);
+        $this->assertMatchesRegularExpression('/kind: "presence", channel: `rooms\.\$\{room\}\.presence`\s*\}/', $consumer);
+
+        // And the endpoint it used to call is gone, so a stale cached bundle cannot keep it awake.
+        [$user, $room] = $this->fixture();
+        $this->auth($user);
+        $this->post('/rooms/'.$room->id.'/presence', ['action' => 'refresh'])->assertNotFound();
     }
 
     public function test_blob_serving_matches_installed_rails_mime_and_disposition_policy(): void

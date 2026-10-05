@@ -10,7 +10,10 @@ function descriptorFor(params) {
 
   switch (params.channel) {
     case "PresenceChannel":
-      return { kind: "presence", channel: `rooms.${room}.presence`, command: `/rooms/${room}/presence` }
+      // No `command`: joining the channel IS the presence report, and presence_controller's
+      // fifty-second refresh therefore sends nothing. Reverb holds the member list and the server
+      // asks for it when it needs it, so an idle tab costs the app no requests at all.
+      return { kind: "presence", channel: `rooms.${room}.presence` }
     case "TypingNotificationsChannel":
       return { kind: "private", channel: `rooms.${room}.typing`, event: "typing", command: `/rooms/${room}/typing` }
     case "UnreadRoomsChannel":
@@ -37,6 +40,8 @@ class Subscription {
   }
 
   send(data) {
+    // Only typing has a server-side command. A presence `present` / `absent` / `refresh` from
+    // presence_controller is deliberately dropped on the floor.
     if (this.descriptor?.command && data?.action) {
       command(this.descriptor.command, { action: data.action })
     }
@@ -46,10 +51,8 @@ class Subscription {
     if (this.unsubscribed) return
     this.unsubscribed = true
     this.releaseConnection?.()
-    if (this.descriptor?.kind === "presence" && this.present) {
-      command(this.descriptor.command, { action: "absent" })
-      this.present = false
-    }
+    // Leaving the channel is the whole of "absent": Reverb drops the member and the next lookup
+    // sees it. Nothing has to be told.
     if (this.channelName) getEcho()?.leave(this.channelName)
   }
 
@@ -71,9 +74,6 @@ class Subscription {
 
     if (descriptor.kind === "presence") {
       instance.join(descriptor.channel)
-      // Joining is authorized server-side, and that is where the membership row is marked present.
-      command(descriptor.command, { action: "present" })
-      this.present = true
       return
     }
 

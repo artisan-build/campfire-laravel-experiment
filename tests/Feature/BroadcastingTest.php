@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Events\RoomRead;
 use App\Events\RoomUnread;
 use App\Events\TurboStreamBroadcast;
 use App\Events\TypingNotification;
@@ -113,29 +112,6 @@ final class BroadcastingTest extends TestCase
         });
 
         $this->post('/rooms/'.$room->id.'/typing', ['action' => 'nonsense'])->assertStatus(302);
-    }
-
-    public function test_the_presence_endpoint_records_presence_only_for_members(): void
-    {
-        [$author, $room] = $this->fixture();
-        $stranger = User::create(['name' => 'Stranger', 'role' => 0, 'status' => 0]);
-        $membership = $room->memberships()->first();
-        $membership->update(['unread_at' => now()]);
-
-        $this->auth($stranger);
-        $this->post('/rooms/'.$room->id.'/presence', ['action' => 'present'])->assertForbidden();
-        $this->assertSame(0, $membership->fresh()->connections);
-
-        $this->flushSession();
-        $this->auth($author);
-        Event::fake([RoomRead::class]);
-        $this->post('/rooms/'.$room->id.'/presence', ['action' => 'present'])->assertNoContent();
-        $this->assertSame(1, $membership->fresh()->connections);
-        $this->assertNull($membership->fresh()->unread_at);
-        Event::assertDispatched(RoomRead::class);
-
-        $this->post('/rooms/'.$room->id.'/presence', ['action' => 'absent'])->assertNoContent();
-        $this->assertSame(0, $membership->fresh()->connections);
     }
 
     public function test_the_room_page_names_its_own_channel_and_the_sidebar_names_the_users(): void
