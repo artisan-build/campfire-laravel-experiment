@@ -18,7 +18,7 @@
             <button type="button" class="btn btn--negative message__action-btn center full-width" data-stream-action="delete" data-owner-action @if(! $currentUser->canAdminister($message)) hidden @endif>Delete</button>
         </div></div>
     </details></div></div>
-    <div id="presentation_message_{{ $message->client_message_id }}" dir="auto" data-stream-part="presentation">@include('messages.stream_presentation')</div>
+    @include('messages.presentation', ['stream' => true])
     <div class="boosts flex flex-wrap align-center gap full-width"><div class="flex-inline flex-wrap gap" data-stream-part="boosts">@foreach($message->boosts as $boost)@include('boosts.stream_boost')@endforeach</div><button type="button" class="btn boost__action txt-small" data-stream-action="custom-boost">Add a boost</button></div>
     </div></div>
 </article>

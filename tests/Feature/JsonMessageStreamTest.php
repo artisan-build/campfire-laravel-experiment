@@ -101,7 +101,7 @@ final class JsonMessageStreamTest extends TestCase
 
         $this->get('/rooms/'.$room->id)->assertOk()
             ->assertSee('alt="diagram.png"', false)
-            ->assertSee('data-stream-action="lightbox"', false)
+            ->assertSee('data-lightbox-url="', false)
             ->assertSee('<video', false)
             ->assertSee('poster="', false);
     }
