@@ -140,11 +140,8 @@ final class TailwindChromeTest extends TestCase
 
         $template = $templates->item(0);
         $this->assertNotNull($template);
-        $optimistic = new DOMDocument;
-        $optimistic->loadHTML($template->textContent, LIBXML_NOERROR | LIBXML_NOWARNING);
-        $optimisticTargets = (new DOMXPath($optimistic))->query('//*[@data-local-time-target="date" or @data-local-time-target="time"]');
-        $this->assertNotFalse($optimisticTargets);
-        $this->assertCount(2, $optimisticTargets);
+        $this->assertSame(1, substr_count($template->textContent, 'data-local-time-target="date"'));
+        $this->assertSame(1, substr_count($template->textContent, 'data-local-time-target="time"'));
     }
 
     public function test_account_bots_navigation_is_visible_without_a_breakpoint(): void
