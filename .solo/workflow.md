@@ -23,9 +23,10 @@ that means replacing upstream code wholesale. Record every such replacement and 
   Cloud app and its resources. Nothing else in the org may be touched (the Rails and Rust Campfire apps are read-only).
 
 ## Hard gate
-- `composer test` (PHPUnit, on Postgres) and `vendor/bin/pint --test` green on the committed SHA, on PHP 8.5 (the CI target).
-  Static analysis (Larastan) joins the gate once the CI PR lands. GitHub Actions CI is REQUIRED for every PR; the fork had none
-  as of 2026-10-05.
+- `composer ready` (pint, Larastan, then `composer test` on Postgres) green on the committed SHA, on PHP 8.5 (the CI target).
+- GitHub Actions CI is REQUIRED for every PR and is the merge gate. `.github/workflows/ci.yml` runs four jobs:
+  `tests (PHP 8.5, Postgres 18)`, `pint`, `larastan`, `audit`. Larastan runs at **level 5** over a `phpstan-baseline.neon`
+  holding 62 pre-existing errors; never regenerate the baseline to absorb a new error, fix the error.
 - Only one branch at a time may deploy to the production Cloud env. Coordinate through brain; live sleep measurements need a quiet env.
 - Behaviour that matters is LIVE behaviour on Cloud. Live-verify user-visible behaviour (standing order 5).
 
