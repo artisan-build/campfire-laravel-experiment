@@ -360,4 +360,9 @@ final class CampfireTest extends TestCase
             @unlink($source);
         }
     }
+
+    public function test_every_response_names_the_instance_that_served_it(): void
+    {
+        $this->get('/up')->assertOk()->assertHeader('X-Campfire-Instance', gethostname());
+    }
 }
