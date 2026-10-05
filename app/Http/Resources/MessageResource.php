@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Boost;
 use App\Models\Message;
+use App\Models\RichText;
 use App\Models\User;
 use App\Support\BlobStorage;
 use App\Support\RichTextRenderer;
@@ -15,7 +16,7 @@ final class MessageResource extends JsonResource
 {
     public function __construct(Message $resource)
     {
-        $resource->load(['creator', 'room', 'richText', 'boosts.booster', 'attachment.blob']);
+        $resource->loadMissing(['creator', 'room', 'richText', 'boosts.booster', 'attachment.blob']);
         parent::__construct($resource);
     }
 
@@ -25,9 +26,10 @@ final class MessageResource extends JsonResource
         /** @var Message $message */
         $message = $this->resource;
         $renderer = app(RichTextRenderer::class);
-        $storedBody = (string) ($message->richText()->value('body') ?? '');
+        $richText = $message->getRelation('richText');
+        $storedBody = $richText instanceof RichText ? (string) $richText->body : '';
         $mentionIds = $renderer->mentions($storedBody);
-        $mentionedUsers = User::query()->whereKey($mentionIds)->get()->keyBy('id');
+        $mentionedUsers = $mentionIds === [] ? collect() : User::query()->whereKey($mentionIds)->get()->keyBy('id');
         $blob = $message->attachment?->blob;
         $attachment = null;
 
@@ -114,7 +116,28 @@ final class MessageResource extends JsonResource
             }
         }
 
-        throw new \OverflowException('Message metadata exceeds the configured broadcast payload budget.');
+        $message['truncation'] = [
+            'fetch_required' => true,
+            'boosts' => ['total' => count($message['boosts']), 'included' => count($message['boosts'])],
+            'mentions' => ['total' => count($message['mentions']), 'included' => count($message['mentions'])],
+            'attachment_included' => $message['attachment'] !== null,
+        ];
+
+        foreach (['boosts', 'mentions'] as $relationship) {
+            while ($this->payloadBytes($message) > $budget && $message[$relationship] !== []) {
+                array_pop($message[$relationship]);
+                $message['truncation'][$relationship]['included'] = count($message[$relationship]);
+            }
+        }
+
+        if ($this->payloadBytes($message) <= $budget) {
+            return $message;
+        }
+
+        $message['attachment'] = null;
+        $message['truncation']['attachment_included'] = false;
+
+        return $message;
     }
 
     /** @return array<string, mixed> */

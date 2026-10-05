@@ -17,7 +17,9 @@ use App\Models\Message;
 use App\Models\User;
 use App\Support\MessageWriter;
 use App\Support\RailsCrypto;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -47,6 +49,36 @@ final class JsonBroadcastingTest extends TestCase
         $this->assertSame('ordinary-message', $payload['message']['client_message_id']);
         $this->assertFalse($payload['message']['body']['truncated']);
         $this->assertLessThan(1000, strlen(json_encode($payload, JSON_THROW_ON_ERROR)));
+    }
+
+    public function test_all_five_json_events_remain_immediate_broadcasts(): void
+    {
+        foreach ([MessagePosted::class, MessageUpdated::class, MessageDeleted::class, BoostAdded::class, BoostRemoved::class] as $event) {
+            $this->assertContains(ShouldBroadcastNow::class, class_implements($event));
+        }
+    }
+
+    public function test_a_preloaded_resource_does_not_reload_its_relations(): void
+    {
+        [$author, $room] = $this->fixture();
+        $message = app(MessageWriter::class)->create($room, $author, ['body' => '<p>No mentions here.</p>']);
+        $message = Message::presentation()->findOrFail($message->id);
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = $query->sql;
+        });
+
+        (new MessageResource($message))->resolve(new Request);
+
+        $this->assertSame([], array_values(array_filter(
+            $queries,
+            fn (string $sql) => str_contains($sql, 'action_text_rich_texts')
+                || str_contains($sql, 'active_storage_attachments')
+                || str_contains($sql, 'active_storage_blobs')
+                || str_contains($sql, 'boosts')
+                || str_contains($sql, 'rooms')
+                || str_contains($sql, 'users'),
+        )));
     }
 
     public function test_the_real_resource_shape_is_complete_and_the_combined_broadcast_is_bounded(): void
@@ -149,6 +181,34 @@ final class JsonBroadcastingTest extends TestCase
         $this->delete('/rooms/'.$room->id.'/messages/'.$message->id)->assertOk();
 
         $this->assertDualMutationEvents($room->id, $message->id, $boost->id, 'human-message');
+    }
+
+    public function test_an_edit_with_sixty_boosts_commits_and_broadcasts_a_bounded_explicitly_partial_resource(): void
+    {
+        [$author, $room] = $this->fixture();
+        $message = app(MessageWriter::class)->create($room, $author, ['body' => '<p>Before</p>']);
+        foreach (range(1, 60) as $number) {
+            $booster = User::create(['name' => 'Overflow Booster '.$number, 'role' => 0, 'status' => 0]);
+            Boost::create(['message_id' => $message->id, 'booster_id' => $booster->id, 'content' => 'boost-'.$number]);
+        }
+        $this->auth($author);
+        Event::fake([TurboStreamBroadcast::class, MessageUpdated::class]);
+
+        $this->patch('/rooms/'.$room->id.'/messages/'.$message->id, ['message' => ['body' => '<p>After</p>']])->assertRedirect();
+
+        Event::assertDispatched(TurboStreamBroadcast::class);
+        Event::assertDispatched(MessageUpdated::class);
+        $event = Event::dispatched(MessageUpdated::class)->first()[0];
+        $broadcast = $event->broadcastWith()['message'];
+        $full = (new MessageResource($message->fresh()))->resolve(new Request);
+
+        $this->assertSame('After', $message->fresh()->plainText());
+        $this->assertLessThanOrEqual(7000, strlen(json_encode(['message' => $broadcast], JSON_THROW_ON_ERROR)));
+        $this->assertTrue($broadcast['truncation']['fetch_required']);
+        $this->assertSame(60, $broadcast['truncation']['boosts']['total']);
+        $this->assertLessThan(60, $broadcast['truncation']['boosts']['included']);
+        $this->assertSame($broadcast['truncation']['boosts']['included'], count($broadcast['boosts']));
+        $this->assertCount(60, $full['boosts']);
     }
 
     public function test_bot_mutations_emit_matching_turbo_and_json_events(): void

@@ -184,12 +184,9 @@ final class BroadcastCsrfTest extends TestCase
             ])->assertOk();
 
             foreach ($this->broadcasts as $broadcast) {
-                if (! $broadcast instanceof TurboStreamBroadcast) {
-                    continue;
-                }
                 $frame = strlen((string) json_encode([
                     'event' => $broadcast->broadcastAs(),
-                    'channel' => 'private-'.$broadcast->channel,
+                    'channel' => $broadcast->broadcastOn()[0]->name,
                     'data' => json_encode($broadcast->broadcastWith()),
                 ]));
                 $this->assertLessThan(10000, $frame, $label.' produced a '.$frame.'-byte frame');
