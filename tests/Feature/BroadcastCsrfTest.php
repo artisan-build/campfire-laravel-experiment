@@ -32,11 +32,9 @@ final class BroadcastCsrfTest extends TestCase
     {
         parent::setUp();
         Queue::fake();
-        $this->broadcasts = [];
+        $this->forget();
         foreach ([TurboStreamBroadcast::class, RoomUnread::class, RoomRead::class, TypingNotification::class] as $event) {
-            Event::listen($event, function (object $broadcast) {
-                $this->broadcasts[] = $broadcast;
-            });
+            Event::listen($event, fn (object $broadcast) => $this->capture($broadcast));
         }
     }
 
@@ -73,7 +71,7 @@ final class BroadcastCsrfTest extends TestCase
         $this->auth($author);
         $this->get('/rooms/'.$room->id)->assertOk();
         $token = session()->token();
-        $this->broadcasts = [];
+        $this->forget();
 
         $this->call('POST', '/rooms/'.$room->id.'/'.$bot->id.'-tok/messages', [], [], [], [], 'Beep')->assertCreated();
 
@@ -94,7 +92,7 @@ final class BroadcastCsrfTest extends TestCase
         $this->auth($author);
         $this->get('/rooms/'.$room->id)->assertOk();
         $token = session()->token();
-        $this->broadcasts = [];
+        $this->forget();
 
         $this->post('/rooms/directs', ['user_ids' => [$other->id]])->assertRedirect();
 
@@ -111,7 +109,7 @@ final class BroadcastCsrfTest extends TestCase
 
         $this->auth($author);
         $this->get('/rooms/'.$room->id)->assertOk();
-        $this->broadcasts = [];
+        $this->forget();
         $this->post('/rooms/'.$room->id.'/messages', ['message' => ['body' => '<p>Tea</p>', 'client_message_id' => 'abc']])->assertOk();
 
         $fragment = collect($this->broadcasts)->first(fn ($b) => $b instanceof TurboStreamBroadcast)->html;
@@ -165,7 +163,7 @@ final class BroadcastCsrfTest extends TestCase
         $this->get('/rooms/'.$room->id)->assertOk();
 
         foreach ([20, 200, 400, 600, 800, 2000] as $length) {
-            $this->broadcasts = [];
+            $this->forget();
             $this->post('/rooms/'.$room->id.'/messages', [
                 'message' => ['body' => '<p>'.str_repeat('a', $length).'</p>', 'client_message_id' => 'cid'.$length],
             ])->assertOk();
@@ -182,6 +180,16 @@ final class BroadcastCsrfTest extends TestCase
                 $this->assertLessThan(10000, $frame, 'a '.$length.'-character message produced a '.$frame.'-byte frame');
             }
         }
+    }
+
+    private function capture(object $broadcast): void
+    {
+        $this->broadcasts[] = $broadcast;
+    }
+
+    private function forget(): void
+    {
+        $this->broadcasts = [];
     }
 
     /** Every broadcast payload, decoded through the same branch the browser decodes. */
