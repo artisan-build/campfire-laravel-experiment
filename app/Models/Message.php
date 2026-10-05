@@ -3,30 +3,38 @@
 namespace App\Models;
 
 use App\Support\RichTextRenderer;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class Message extends Record
 {
-    public function creator()
+    /** @return BelongsTo<User, $this> */
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creator_id');
     }
 
-    public function room()
+    /** @return BelongsTo<Room, $this> */
+    public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
     }
 
-    public function richText()
+    /** @return HasOne<RichText, $this> */
+    public function richText(): HasOne
     {
         return $this->hasOne(RichText::class, 'record_id')->where('record_type', 'Message')->where('name', 'body');
     }
 
-    public function boosts()
+    /** @return HasMany<Boost, $this> */
+    public function boosts(): HasMany
     {
         return $this->hasMany(Boost::class);
     }
 
-    public function attachment()
+    /** @return HasOne<Attachment, $this> */
+    public function attachment(): HasOne
     {
         return $this->hasOne(Attachment::class, 'record_id')->where('record_type', 'Message')->where('name', 'attachment');
     }

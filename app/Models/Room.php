@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
 final class Room extends Record
 {
     public function messages()
@@ -9,7 +11,8 @@ final class Room extends Record
         return $this->hasMany(Message::class);
     }
 
-    public function users()
+    /** @return BelongsToMany<User, $this> */
+    public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'memberships');
     }

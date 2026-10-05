@@ -24,6 +24,18 @@ final class TurboStreamBroadcast implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets;
 
+    private const INLINE_PAYLOAD = 'html';
+
+    private const COMPRESSED_PAYLOAD = 'gz';
+
+    private const POINTER_PAYLOAD = 'oversize';
+
+    private const PAYLOAD_VARIANTS = [
+        self::INLINE_PAYLOAD => 'inline',
+        self::COMPRESSED_PAYLOAD => 'gzip+base64',
+        self::POINTER_PAYLOAD => 'refresh-pointer',
+    ];
+
     /**
      * @return array{format: string, variants: list<string>}
      */
@@ -31,8 +43,16 @@ final class TurboStreamBroadcast implements ShouldBroadcastNow
     {
         return [
             'format' => 'turbo-stream-html',
-            'variants' => ['inline', 'gzip+base64', 'refresh-pointer'],
+            'variants' => array_values(self::PAYLOAD_VARIANTS),
         ];
+    }
+
+    /** @param array<string, mixed> $payload */
+    public static function encodingVariant(array $payload): string
+    {
+        $key = array_key_first($payload);
+
+        return self::PAYLOAD_VARIANTS[$key] ?? throw new \InvalidArgumentException('Unknown Turbo broadcast payload.');
     }
 
     public function __construct(
@@ -62,15 +82,15 @@ final class TurboStreamBroadcast implements ShouldBroadcastNow
         $limit = (int) config('campfire.broadcast_payload_limit');
 
         if (strlen($this->html) <= $limit) {
-            return ['html' => $this->html];
+            return [self::INLINE_PAYLOAD => $this->html];
         }
 
         $compressed = base64_encode(gzencode($this->html, 6));
 
         if (strlen($compressed) <= $limit) {
-            return ['gz' => $compressed];
+            return [self::COMPRESSED_PAYLOAD => $compressed];
         }
 
-        return ['oversize' => true, 'roomId' => $this->roomId];
+        return [self::POINTER_PAYLOAD => true, 'roomId' => $this->roomId];
     }
 }

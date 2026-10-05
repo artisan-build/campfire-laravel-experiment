@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\MessageResource;
 use App\Models\Message;
 use App\Models\Room;
 use App\Support\Broadcasting;
+use App\Support\ChatEvents;
 use App\Support\MessageWriter;
-use App\Support\RichTextRenderer;
 use App\Support\Search;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -55,7 +56,7 @@ final class ChatController extends Controller
             return response('', 204);
         }
         if ($r->expectsJson()) {
-            return response()->json($messages->map(fn ($m) => $this->json($m)));
+            return response()->json($messages->map(fn (Message $message) => (new MessageResource($message))->resolve(new Request)));
         }
 
         return response()->view('messages.index', compact('messages'));
@@ -65,7 +66,7 @@ final class ChatController extends Controller
     {
         $m = $this->findRoom($r, $room)->messages()->presentation()->findOrFail($id);
 
-        return $r->expectsJson() ? response()->json($this->json($m)) : view('messages.show', ['message' => $m]);
+        return $r->expectsJson() ? response()->json((new MessageResource($m))->resolve(new Request)) : view('messages.show', ['message' => $m]);
     }
 
     public function edit(Request $r, int $room, int $id)
@@ -80,15 +81,10 @@ final class ChatController extends Controller
     {
         $room = $this->findRoom($r, $room);
         $a = $r->validate(['message' => 'required|array', 'message.body' => 'nullable|string', 'message.client_message_id' => 'nullable|string|max:255', 'message.attachment' => 'nullable']);
-        $m = app(MessageWriter::class)->create($room, $r->user(), $r->hasFile('message.attachment') ? array_merge($a['message'], ['attachment' => $r->file('message.attachment')]) : $a['message'], true)->load(['creator', 'room.users', 'richText', 'boosts.booster', 'attachment.blob']);
-        $html = view('messages.message', ['message' => $m])->render();
-        $stream = $this->stream('append', 'messages_room_'.$room->id, $html);
-        app(Broadcasting::class)->room($room->id, $stream);
-        foreach ($room->memberships()->pluck('user_id') as $user) {
-            app(Broadcasting::class)->unread((int) $user, $room->id);
-        }
+        $m = app(MessageWriter::class)->create($room, $r->user(), $r->hasFile('message.attachment') ? array_merge($a['message'], ['attachment' => $r->file('message.attachment')]) : $a['message'], true);
+        $stream = app(ChatEvents::class)->created($m);
 
-        return $r->expectsJson() ? response()->json($this->json($m), 201) : response($stream, 200)->header('Content-Type', 'text/vnd.turbo-stream.html; charset=utf-8');
+        return $r->expectsJson() ? response()->json((new MessageResource($m))->resolve(new Request), 201) : response($stream, 200)->header('Content-Type', 'text/vnd.turbo-stream.html; charset=utf-8');
     }
 
     public function update(Request $r, int $room, int $id)
@@ -96,20 +92,16 @@ final class ChatController extends Controller
         $m = $this->findRoom($r, $room)->messages()->findOrFail($id);
         abort_unless($r->user()->canAdminister($m), 403);
         app(MessageWriter::class)->update($m, $r->input('message', []));
-        $m->refresh()->load(['creator', 'room.users', 'richText', 'boosts.booster', 'attachment.blob']);
-        app(Broadcasting::class)->room($room, $this->stream('replace', 'presentation_message_'.$m->client_message_id, view('messages.presentation', ['message' => $m])->render()));
+        app(ChatEvents::class)->updated($m);
 
-        return $r->expectsJson() ? response()->json($this->json($m)) : redirect('/rooms/'.$room.'/messages/'.$id);
+        return $r->expectsJson() ? response()->json((new MessageResource($m))->resolve(new Request)) : redirect('/rooms/'.$room.'/messages/'.$id);
     }
 
     public function destroy(Request $r, int $room, int $id)
     {
         $m = $this->findRoom($r, $room)->messages()->findOrFail($id);
         abort_unless($r->user()->canAdminister($m), 403);
-        $target = 'message_'.$m->client_message_id;
-        app(MessageWriter::class)->destroy($m);
-        $s = $this->stream('remove', $target, '');
-        app(Broadcasting::class)->room($room, $s);
+        $s = app(ChatEvents::class)->delete($m);
 
         return response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
     }
@@ -183,18 +175,6 @@ final class ChatController extends Controller
     public function findRoom(Request $r, int $id): Room
     {
         return $r->user()->rooms()->findOrFail($id);
-    }
-
-    public function json(Message $m): array
-    {
-        return [
-            'id' => $m->id,
-            'created_at' => $m->created_at->toISOString(),
-            'body' => ['plain_text' => $m->plainText(), 'html' => app(RichTextRenderer::class)->html($m->richText?->body ?? '')],
-            'creator' => ['id' => $m->creator->id, 'name' => $m->creator->name, 'role' => ['member', 'administrator', 'bot'][$m->creator->role], 'avatar_url' => url($m->creator->avatarUrl())],
-            'room' => ['id' => $m->room_id],
-            'url' => url('/rooms/'.$m->room_id.'/messages/'.$m->id),
-        ];
     }
 
     public function stream(string $action, string $target, string $html): string

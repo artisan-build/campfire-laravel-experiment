@@ -108,6 +108,12 @@ final class BroadcastingTest extends TestCase
         // Incompressible and past the limit: nothing left but a pointer.
         $pointer = (new TurboStreamBroadcast('rooms.1', random_bytes(4096), 1))->broadcastWith();
         $this->assertSame(['oversize' => true, 'roomId' => 1], $pointer);
+
+        $this->assertSame(
+            TurboStreamBroadcast::encoding()['variants'],
+            array_map(TurboStreamBroadcast::encodingVariant(...), [$inline, $compressed, $pointer]),
+            'Doctor metadata must be sourced from every observed broadcastWith branch',
+        );
     }
 
     public function test_a_real_message_fragment_fits_in_a_reverb_frame_once_compressed(): void

@@ -2,6 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Events\BoostAdded;
+use App\Events\BoostRemoved;
+use App\Events\MessageDeleted;
+use App\Events\MessagePosted;
+use App\Events\MessageUpdated;
 use App\Events\RoomRead;
 use App\Events\RoomUnread;
 use App\Events\TurboStreamBroadcast;
@@ -33,7 +38,7 @@ final class BroadcastCsrfTest extends TestCase
         parent::setUp();
         Queue::fake();
         $this->forget();
-        foreach ([TurboStreamBroadcast::class, RoomUnread::class, RoomRead::class, TypingNotification::class] as $event) {
+        foreach ([TurboStreamBroadcast::class, MessagePosted::class, MessageUpdated::class, MessageDeleted::class, BoostAdded::class, BoostRemoved::class, RoomUnread::class, RoomRead::class, TypingNotification::class] as $event) {
             Event::listen($event, fn (object $broadcast) => $this->capture($broadcast));
         }
     }
