@@ -7,6 +7,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\LinksController;
 use App\Http\Controllers\PeopleController;
 use App\Http\Controllers\PushController;
+use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\RoomsController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\StorageController;
@@ -54,6 +55,8 @@ Route::middleware('campfire.auth')->group(function () {
     Route::delete('/rooms/{room}/messages/{id}', [ChatController::class, 'destroy'])->whereNumber(['room', 'id']);
     Route::get('/rooms/{room}/refresh', [ChatController::class, 'refresh'])->whereNumber('room');
     Route::get('/users/{user}/sidebar', [ChatController::class, 'sidebar']);
+    Route::post('/rooms/{room}/presence', [RealtimeController::class, 'presence'])->whereNumber('room');
+    Route::post('/rooms/{room}/typing', [RealtimeController::class, 'typing'])->whereNumber('room');
     Route::get('/searches', [ChatController::class, 'search']);
     Route::post('/searches', [ChatController::class, 'recordSearch']);
     Route::delete('/searches/clear', [ChatController::class, 'clearSearch']);

@@ -7,7 +7,7 @@ use App\Models\Membership;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\BlobStorage;
-use App\Support\Broadcasts;
+use App\Support\Broadcasting;
 use App\Support\ChatEvents;
 use App\Support\MessageWriter;
 use Illuminate\Http\Request;
@@ -109,12 +109,12 @@ final class BotsController extends Controller
             abort_unless(trim($content) !== '' && mb_strlen($content) <= 16, 422);
             $b = Boost::create(['message_id' => $id, 'booster_id' => $bot->id, 'content' => $content]);
             $s = app(ChatController::class)->stream('append', 'boosts_message_'.$m->client_message_id, view('boosts.boost', ['boost' => $b->load('booster')])->render());
-            app(Broadcasts::class)->room($room->id, $s);
+            app(Broadcasting::class)->room($room->id, $s);
 
             return response()->json(['id' => $b->id, 'content' => $b->content, 'booster' => ['id' => $bot->id, 'name' => $bot->name]], 201);
         }$b = $m->boosts()->where('booster_id', $bot->id)->findOrFail($boost);
         $b->delete();
-        app(Broadcasts::class)->room($room->id, app(ChatController::class)->stream('remove', 'boost_'.$boost, ''));
+        app(Broadcasting::class)->room($room->id, app(ChatController::class)->stream('remove', 'boost_'.$boost, ''));
 
         return response('', 204);
     }
@@ -162,7 +162,7 @@ final class BotsController extends Controller
         if ($r->isMethod('DELETE')) {
             $target = 'message_'.$m->client_message_id;
             app(MessageWriter::class)->destroy($m);
-            app(Broadcasts::class)->room($room->id, $controller->stream('remove', $target, ''));
+            app(Broadcasting::class)->room($room->id, $controller->stream('remove', $target, ''));
 
             return response('', 204);
         }app(MessageWriter::class)->update($m, $r->input('message', ['body' => $r->getContent()]));

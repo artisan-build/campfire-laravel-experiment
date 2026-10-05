@@ -46,15 +46,6 @@ final class RailsCryptoTest extends TestCase
         }
     }
 
-    public function test_turbo_stream_digest_matches_rails(): void
-    {
-        $c = app(RailsCrypto::class);
-        $v = $this->v['turbo_stream_names']['generate'][0];
-        $this->assertSame($v['signed'], $c->stream(1, 'Rooms::Open'));
-        $this->assertSame(1, $c->verifyStream($v['signed']));
-        $this->assertNull($c->verifyStream(substr($v['signed'], 0, -1).'0'));
-    }
-
     public function test_signed_global_ids_match_rails(): void
     {
         $c = app(RailsCrypto::class);

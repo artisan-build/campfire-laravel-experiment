@@ -1,17 +1,19 @@
 #!/bin/sh
 set -eu
 : "${HTTP_PORT:=80}"
-: "${CABLE_PORT:=$((HTTP_PORT + 1000))}"
 : "${FPM_PORT:=$((HTTP_PORT + 2000))}"
-export CABLE_PORT FPM_PORT
-: "${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}"
-export APP_ENV=production APP_DEBUG=false DB_CONNECTION=sqlite DB_DATABASE=${DB_DATABASE:-/rails/storage/db/production.sqlite3} SESSION_DRIVER=file CACHE_STORE=file QUEUE_CONNECTION=database APP_KEY=${APP_KEY:-$(php -r 'echo "base64:".base64_encode(hash_hmac("sha256","laravel-framework",getenv("SECRET_KEY_BASE"),true));')}
-mkdir -p storage/db storage/files storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs
+export FPM_PORT
+export APP_ENV=${APP_ENV:-production} APP_DEBUG=${APP_DEBUG:-false} DB_CONNECTION=${DB_CONNECTION:-pgsql}
+# Nothing here is required of the operator. A missing APP_KEY is generated and kept in .env, which is
+# what a single-container install has for durable state; on Cloud, Cloud generates it instead.
+[ -f .env ] || cp .env.example .env
+grep -q '^APP_KEY=.\+' .env || php artisan key:generate --force --no-interaction
+mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs storage/app/private
 chown -R www-data:www-data storage bootstrap/cache
-php artisan campfire:install --no-interaction
+php artisan migrate --force --no-interaction
 php artisan config:cache
 php artisan view:cache
-sed -e "s/HTTP_PORT/$HTTP_PORT/" -e "s/CABLE_PORT/$CABLE_PORT/" -e "s/FPM_PORT/$FPM_PORT/" deploy/nginx.conf > /tmp/campfire-nginx.conf
+sed -e "s/HTTP_PORT/$HTTP_PORT/" -e "s/FPM_PORT/$FPM_PORT/" deploy/nginx.conf > /tmp/campfire-nginx.conf
 chown -R www-data:www-data storage bootstrap/cache
 sed "s/FPM_PORT/$FPM_PORT/" deploy/fpm.conf > /usr/local/etc/php-fpm.d/zz-campfire.conf
 sed '/fastcgi_param[[:space:]]*HTTP_HOST/d' /etc/nginx/fastcgi_params > /tmp/campfire-fastcgi_params
@@ -19,14 +21,11 @@ php-fpm -F > storage/logs/fpm.log 2>&1 &
 fpm_pid=$!
 php artisan queue:work --sleep=1 --tries=3 --timeout=30 > storage/logs/queue.log 2>&1 &
 queue_pid=$!
-rm -f storage/cable.pid
-php bin/cable start > storage/logs/cable.log 2>&1 &
-cable_pid=$!
 nginx -c /tmp/campfire-nginx.conf -g 'daemon off;' &
 nginx_pid=$!
 shutdown() {
  kill -QUIT "$nginx_pid" "$fpm_pid" 2>/dev/null || true
- kill -TERM "$queue_pid" "$cable_pid" 2>/dev/null || true
+ kill -TERM "$queue_pid" 2>/dev/null || true
  wait || true
 }
 trap shutdown TERM INT

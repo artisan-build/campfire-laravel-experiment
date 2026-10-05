@@ -20,6 +20,16 @@ final class User extends Record
         return $this->hasMany(Membership::class);
     }
 
+    /**
+     * Laravel's presence-channel response asks the user model for its identifier. Campfire has its
+     * own session table rather than an auth guard, so this is the only piece of the Authenticatable
+     * contract it needs.
+     */
+    public function getAuthIdentifier(): int
+    {
+        return $this->id;
+    }
+
     public function scopeActive($q)
     {
         return $q->where('status', 0);

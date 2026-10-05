@@ -12,9 +12,9 @@ final class ChatEvents
         $m->load(['creator', 'room.users', 'richText', 'boosts.booster', 'attachment.blob']);
         $html = view('messages.message', ['message' => $m])->render();
         $s = app(ChatController::class)->stream('append', 'messages_room_'.$m->room_id, $html);
-        app(Broadcasts::class)->room($m->room_id, $s);
+        app(Broadcasting::class)->room($m->room_id, $s);
         foreach ($m->room->memberships()->pluck('user_id') as $id) {
-            app(Broadcasts::class)->publish('user_'.$id.'_unreads', ['roomId' => $m->room_id]);
+            app(Broadcasting::class)->unread((int) $id, $m->room_id);
         }
 
         return $s;

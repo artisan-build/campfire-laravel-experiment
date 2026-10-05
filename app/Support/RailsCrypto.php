@@ -177,45 +177,4 @@ final class RailsCrypto
 
         return preg_match('~^gid://campfire/(User|ActiveStorage::Blob)/(\d+)(?:\?.*)?$~', $data, $m) ? ['model' => $m[1], 'id' => (int) $m[2]] : null;
     }
-
-    public function streamName(string $name): string
-    {
-        $data = base64_encode(json_encode($name, JSON_UNESCAPED_SLASHES));
-
-        return $data.'--'.hash_hmac('sha256', $data, $this->key('turbo/signed_stream_verifier_key'));
-    }
-
-    public function verifyStreamName(string $raw): ?string
-    {
-        $parts = explode('--', $raw);
-        if (count($parts) !== 2 || ! hash_equals(hash_hmac('sha256', $parts[0], $this->key('turbo/signed_stream_verifier_key')), $parts[1])) {
-            return null;
-        }
-        $name = json_decode(base64_decode($parts[0], true) ?: '', true);
-
-        return is_string($name) ? $name : null;
-    }
-
-    public function stream(int $room, string $type = 'Rooms::Open'): string
-    {
-        $gid = rtrim(base64_encode('gid://campfire/'.$type.'/'.$room), '=');
-        $data = base64_encode($this->json($gid.':messages'));
-
-        return $data.'--'.hash_hmac('sha256', $data, $this->key('turbo/signed_stream_verifier_key'));
-    }
-
-    public function verifyStream(string $raw): ?int
-    {
-        $p = explode('--', $raw);
-        if (count($p) !== 2 || ! hash_equals(hash_hmac('sha256', $p[0], $this->key('turbo/signed_stream_verifier_key')), $p[1])) {
-            return null;
-        }
-        $stream = json_decode(base64_decode($p[0], true) ?: '', true);
-        if (! is_string($stream) || ! str_ends_with($stream, ':messages')) {
-            return null;
-        }
-        $gid = base64_decode(substr($stream, 0, -9), true);
-
-        return preg_match('~^gid://campfire/(?:Room|Rooms::(?:Open|Closed|Direct))/(\d+)$~', $gid ?: '', $m) ? (int) $m[1] : null;
-    }
 }

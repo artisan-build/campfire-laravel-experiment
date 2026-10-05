@@ -9,7 +9,7 @@ final class SidebarEvents
 {
     public function globalRemove(int $roomId): void
     {
-        DB::afterCommit(fn () => app(Broadcasts::class)->publish('rooms', '<turbo-stream action="remove" target="list_room_'.$roomId.'"></turbo-stream>'));
+        DB::afterCommit(fn () => app(Broadcasting::class)->roomList('<turbo-stream action="remove" target="list_room_'.$roomId.'"></turbo-stream>'));
     }
 
     public function refresh(array $userIds): void
@@ -20,7 +20,7 @@ final class SidebarEvents
                 $directs = $memberships->filter(fn ($membership) => $membership->room->type === 'Rooms::Direct')->sortByDesc(fn ($membership) => $membership->room->updated_at);
                 $shared = $memberships->reject(fn ($membership) => $membership->room->type === 'Rooms::Direct')->sortBy(fn ($membership) => mb_strtolower($membership->room->name ?? ''));
                 $html = view('users.sidebar', ['directs' => $directs, 'shared' => $shared, 'currentUser' => $user])->render();
-                app(Broadcasts::class)->publish('user_'.$user->id.'_rooms', '<turbo-stream action="replace" target="user_sidebar"><template>'.$html.'</template></turbo-stream>');
+                app(Broadcasting::class)->userSidebar($user->id, '<turbo-stream action="replace" target="user_sidebar"><template>'.$html.'</template></turbo-stream>');
             }
         });
     }

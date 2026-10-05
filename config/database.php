@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'pgsql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -31,8 +31,6 @@ return [
     */
 
     'connections' => [
-        'jobs' => ['driver' => 'sqlite', 'database' => storage_path('jobs.sqlite3'), 'prefix' => '', 'foreign_key_constraints' => true, 'busy_timeout' => 10000, 'journal_mode' => null, 'transaction_mode' => 'IMMEDIATE'],
-
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),

@@ -4,9 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\Room;
-use App\Support\Broadcasts;
+use App\Support\Broadcasting;
 use App\Support\MessageWriter;
 use App\Support\RichTextRenderer;
+use App\Support\Search;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -81,9 +82,9 @@ final class ChatController extends Controller
         $m = app(MessageWriter::class)->create($room, $r->user(), $r->hasFile('message.attachment') ? array_merge($a['message'], ['attachment' => $r->file('message.attachment')]) : $a['message'], true)->load(['creator', 'room.users', 'richText', 'boosts.booster', 'attachment.blob']);
         $html = view('messages.message', ['message' => $m])->render();
         $stream = $this->stream('append', 'messages_room_'.$room->id, $html);
-        app(Broadcasts::class)->room($room->id, $stream);
+        app(Broadcasting::class)->room($room->id, $stream);
         foreach ($room->memberships()->pluck('user_id') as $user) {
-            app(Broadcasts::class)->publish('user_'.$user.'_unreads', ['roomId' => $room->id]);
+            app(Broadcasting::class)->unread((int) $user, $room->id);
         }
 
         return $r->expectsJson() ? response()->json($this->json($m), 201) : response($stream, 200)->header('Content-Type', 'text/vnd.turbo-stream.html; charset=utf-8');
@@ -95,7 +96,7 @@ final class ChatController extends Controller
         abort_unless($r->user()->canAdminister($m), 403);
         app(MessageWriter::class)->update($m, $r->input('message', []));
         $m->refresh()->load(['creator', 'room.users', 'richText', 'boosts.booster', 'attachment.blob']);
-        app(Broadcasts::class)->room($room, $this->stream('replace', 'presentation_message_'.$m->client_message_id, view('messages.presentation', ['message' => $m])->render()));
+        app(Broadcasting::class)->room($room, $this->stream('replace', 'presentation_message_'.$m->client_message_id, view('messages.presentation', ['message' => $m])->render()));
 
         return $r->expectsJson() ? response()->json($this->json($m)) : redirect('/rooms/'.$room.'/messages/'.$id);
     }
@@ -107,7 +108,7 @@ final class ChatController extends Controller
         $target = 'message_'.$m->client_message_id;
         app(MessageWriter::class)->destroy($m);
         $s = $this->stream('remove', $target, '');
-        app(Broadcasts::class)->room($room, $s);
+        app(Broadcasting::class)->room($room, $s);
 
         return response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
     }
@@ -123,10 +124,10 @@ final class ChatController extends Controller
 
     public function search(Request $r)
     {
-        $query = preg_replace('/[^\p{L}\p{N}_]/u', ' ', $r->input('q', ''));
+        $query = Search::normalize($r->input('q', ''));
         $messages = collect();
         if (trim($query) !== '') {
-            $messages = Message::presentation()->join('message_search_index as idx', 'messages.id', '=', 'idx.rowid')->whereRaw('idx.body MATCH ?', [$query])->whereIn('room_id', $r->user()->rooms()->select('rooms.id'))->select('messages.*')->orderByDesc('messages.created_at')->limit(100)->get()->reverse();
+            $messages = Message::presentation()->join('message_search_index as idx', 'messages.id', '=', 'idx.message_id')->whereFullText('idx.body', $query)->whereIn('room_id', $r->user()->rooms()->select('rooms.id'))->select('messages.*')->orderByDesc('messages.created_at')->limit(100)->get()->reverse();
         }
 
         return view('searches.index', compact('query', 'messages'));
@@ -134,7 +135,7 @@ final class ChatController extends Controller
 
     public function recordSearch(Request $r)
     {
-        $query = preg_replace('/[^\p{L}\p{N}_]/u', ' ', $r->input('q', ''));
+        $query = Search::normalize($r->input('q', ''));
         DB::table('searches')->updateOrInsert(['user_id' => $r->user()->id, 'query' => $query], ['created_at' => now(), 'updated_at' => now()]);
 
         return redirect('/searches?q='.urlencode($query));

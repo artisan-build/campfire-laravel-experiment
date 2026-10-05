@@ -7,11 +7,12 @@
 <meta name="view-transition" content="same-origin"><meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="csrf-token" content="{{ csrf_token() }}"><meta name="csrf-param" content="authenticity_token"><meta name="action-cable-url" content="/cable">
+<meta name="csrf-token" content="{{ csrf_token() }}"><meta name="csrf-param" content="authenticity_token">
+@if(config('broadcasting.default') === 'reverb')<meta name="echo-config" content="{{ json_encode(['key' => config('broadcasting.connections.reverb.key'), 'host' => config('broadcasting.connections.reverb.options.host'), 'port' => config('broadcasting.connections.reverb.options.port'), 'scheme' => config('broadcasting.connections.reverb.options.scheme')]) }}">@endif
 @if(isset($currentUser))
 <meta name="current-user-id" content="{{ $currentUser->id }}"><meta name="current-user-name" content="{{ $currentUser->name }}">
 @endif
-<meta name="vapid-public-key" content="{{ config('campfire.vapid_public_key', '') }}"><meta name="turbo-prefetch" content="true">
+<meta name="vapid-public-key" content="{{ app(\App\Support\Vapid::class)->publicKey() }}"><meta name="turbo-prefetch" content="true">
 <link rel="manifest" href="/webmanifest.json"><link rel="icon" href="/account/logo" type="image/png"><link rel="apple-touch-icon" href="/account/logo">
 {!! $assets->head() !!}
 @yield('head')

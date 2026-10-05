@@ -1,6 +1,6 @@
 {
   "imports": {
-    "application": "ASSET:application.js",
+    "application": "ASSET:campfire/application.js",
     "@hotwired/stimulus": "ASSET:stimulus.min.js",
     "@hotwired/stimulus-loading": "ASSET:stimulus-loading.js",
     "@hotwired/turbo-rails": "ASSET:turbo.js",
@@ -90,6 +90,13 @@
     "languages/sql": "ASSET:languages/sql.js",
     "languages/xml": "ASSET:languages/xml.js",
     "initializers": "ASSET:initializers/index.js",
-    "controllers": "ASSET:controllers/index.js"
+    "controllers": "ASSET:controllers/index.js",
+    "campfire/echo": "ASSET:campfire/echo/index.js",
+    "campfire/echo/config": "ASSET:campfire/echo/config.js",
+    "campfire/echo/consumer": "ASSET:campfire/echo/consumer.js",
+    "campfire/echo/commands": "ASSET:campfire/echo/commands.js",
+    "campfire/echo/stream_source": "ASSET:campfire/echo/stream_source.js",
+    "campfire/vendor/laravel-echo": "ASSET:campfire/vendor/laravel-echo.js",
+    "campfire/vendor/pusher-js": "ASSET:campfire/vendor/pusher-js.js"
   }
 }

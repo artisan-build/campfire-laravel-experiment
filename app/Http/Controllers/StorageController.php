@@ -14,17 +14,25 @@ use Illuminate\Support\Facades\DB;
 
 final class StorageController extends Controller
 {
+    /**
+     * Attachment downloads redirect to a short-lived signed URL on the disk, which is what Active
+     * Storage does too: the app stays the authorization gate and the bytes never touch it. When the
+     * disk cannot sign (the local driver in development and tests) the file is streamed instead.
+     */
     public function blob(Request $r, string $signed, string $filename)
     {
         $id = app(RailsCrypto::class)->verifyId($signed, 'ActiveStorage::Blob', 'blob_id');
         $blob = Blob::findOrFail($id);
-        $path = app(BlobStorage::class)->path($blob);
-        abort_unless(is_file($path), 404);
+        $storage = app(BlobStorage::class);
+        abort_unless($storage->disk()->exists($storage->path($blob)), 404);
+
         // Installed ActiveStorage::Blob::Servable determines both MIME and disposition.
         $binary = in_array($blob->content_type, ['text/html', 'image/svg+xml', 'application/postscript', 'application/x-shockwave-flash', 'text/xml', 'application/xml', 'application/xhtml+xml', 'application/mathml+xml', 'text/cache-manifest']);
         $inline = in_array($blob->content_type, ['image/webp', 'image/avif', 'image/png', 'image/gif', 'image/jpeg', 'image/tiff', 'image/bmp', 'image/vnd.adobe.photoshop', 'image/vnd.microsoft.icon', 'application/pdf']);
+        $type = $binary ? 'application/octet-stream' : ($blob->content_type ?? 'application/octet-stream');
+        $disposition = (! $binary && $inline && $r->input('disposition') !== 'attachment' ? 'inline' : 'attachment').'; filename="'.str_replace(['"', "\r", "\n"], '_', $blob->filename).'"';
 
-        return response()->file($path, ['Content-Type' => $binary ? 'application/octet-stream' : ($blob->content_type ?? 'application/octet-stream'), 'Content-Disposition' => (! $binary && $inline && $r->input('disposition') !== 'attachment' ? 'inline' : 'attachment').'; filename="'.str_replace(['"', "\r", "\n"], '_', $blob->filename).'"', 'X-Content-Type-Options' => 'nosniff']);
+        return $this->serve($storage->path($blob), $type, $disposition);
     }
 
     public function avatar(Request $r, string $user)
@@ -32,10 +40,10 @@ final class StorageController extends Controller
         $id = app(RailsCrypto::class)->verifyId($user, 'User', 'avatar');
         $u = User::findOrFail($id);
         $blob = app(BlobStorage::class)->attached('User', $u->id, 'avatar');
-        if ($blob && in_array($blob->content_type, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
+        if ($blob && in_array($blob->content_type, Media::IMAGE_TYPES, true)) {
             $path = app(Media::class)->variant($blob, ['resize_to_limit' => [512, 512], 'format' => 'webp']);
 
-            return $this->cachedAvatar(response()->file($path, ['Content-Type' => 'image/webp', 'Content-Disposition' => 'inline']), $u, $r);
+            return $this->cachedAvatar($this->serve($path, 'image/webp', 'inline'), $u, $r);
         }
         if ($u->role === 2) {
             return $this->cachedAvatar(response()->file(public_path(ltrim(app(Assets::class)->path('default-bot-avatar.svg'), '/')), ['Content-Type' => 'image/svg+xml', 'Content-Disposition' => 'inline']), $u, $r);
@@ -49,8 +57,10 @@ final class StorageController extends Controller
     private function cachedAvatar($response, User $user, Request $request)
     {
         $response->headers->set('Cache-Control', 'public, max-age=1800, stale-while-revalidate=604800');
-        $response->setEtag(hash('sha256', $user->id.'-'.$user->getRawOriginal('updated_at')));
-        $response->isNotModified($request);
+        if (! $response->isRedirection()) {
+            $response->setEtag(hash('sha256', $user->id.'-'.$user->getRawOriginal('updated_at')));
+            $response->isNotModified($request);
+        }
 
         return $response;
     }
@@ -62,12 +72,35 @@ final class StorageController extends Controller
         abort_unless(is_array($v), 404);
         $path = app(Media::class)->variant($b, $v);
 
-        return response()->file($path, ['Content-Type' => 'image/'.($v['format'] ?? 'webp'), 'Cache-Control' => 'public, max-age=31536000', 'X-Content-Type-Options' => 'nosniff']);
+        return $this->serve($path, 'image/'.($v['format'] ?? 'webp'), 'inline', 'public, max-age=31536000');
+    }
+
+    /**
+     * Redirect to a signed disk URL when the disk can mint one, stream otherwise.
+     */
+    private function serve(string $path, string $type, string $disposition, string $cacheControl = 'private, max-age=300')
+    {
+        $storage = app(BlobStorage::class);
+        $disk = $storage->disk();
+
+        if ($storage->signsResponses()) {
+            return redirect($disk->temporaryUrl($path, now()->addMinutes(5), [
+                'ResponseContentType' => $type,
+                'ResponseContentDisposition' => $disposition,
+                'ResponseCacheControl' => $cacheControl,
+            ]))->header('Cache-Control', 'private, max-age=60');
+        }
+
+        return $disk->response($path, null, [
+            'Content-Type' => $type,
+            'Content-Disposition' => $disposition,
+            'Cache-Control' => $cacheControl,
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function deleteAvatar(Request $r, string $user)
     {
-        $r->user()->id;
         Attachment::where(['record_type' => 'User', 'record_id' => $r->user()->id, 'name' => 'avatar'])->delete();
         $r->user()->touch();
 
@@ -85,9 +118,9 @@ final class StorageController extends Controller
     public function directUpload(Request $r)
     {
         $a = $r->validate(['blob.filename' => 'required|string', 'blob.byte_size' => 'required|integer|min:0|max:104857600', 'blob.checksum' => 'required|string', 'blob.content_type' => 'nullable|string']);
-        $b = Blob::create($a['blob'] + ['key' => bin2hex(random_bytes(14)), 'metadata' => '{}', 'service_name' => 'local', 'created_at' => now()]);
+        $b = Blob::create($a['blob'] + ['key' => bin2hex(random_bytes(14)), 'metadata' => '{}', 'service_name' => 'campfire', 'created_at' => now()]);
         $signed = app(RailsCrypto::class)->signedId($b->id, 'ActiveStorage::Blob', 'blob_id');
-        $upload = app(RailsCrypto::class)->appSign(['key' => $b->key, 'content_type' => $b->content_type, 'content_length' => $b->byte_size, 'checksum' => $b->checksum, 'service_name' => 'local'], 'blob_token', now()->addMinutes(5)->format('Y-m-d\\TH:i:s.v\\Z'));
+        $upload = app(RailsCrypto::class)->appSign(['key' => $b->key, 'content_type' => $b->content_type, 'content_length' => $b->byte_size, 'checksum' => $b->checksum, 'service_name' => 'campfire'], 'blob_token', now()->addMinutes(5)->format('Y-m-d\\TH:i:s.v\\Z'));
 
         return response()->json($b->toArray() + ['signed_id' => $signed, 'direct_upload' => ['url' => url('/rails/active_storage/disk/'.$upload), 'headers' => ['Content-Type' => $b->content_type, 'Content-MD5' => $b->checksum]]]);
     }
@@ -95,16 +128,12 @@ final class StorageController extends Controller
     public function disk(Request $r, string $signed)
     {
         $token = app(RailsCrypto::class)->appVerify($signed, 'blob_token');
-        abort_unless(is_array($token) && ($token['service_name'] ?? '') === 'local', 404);
+        abort_unless(is_array($token) && ($token['service_name'] ?? '') === 'campfire', 404);
         $b = Blob::where('key', $token['key'] ?? null)->firstOrFail();
         $data = $r->getContent();
         abort_unless(strlen($data) === $token['content_length'] && hash_equals($token['checksum'], base64_encode(md5($data, true))), 422);
-        $path = app(BlobStorage::class)->path($b);
-        if (! is_dir(dirname($path))) {
-            mkdir(dirname($path), 0755, true);
-        }if (file_put_contents($path, $data) !== strlen($data)) {
-            throw new \RuntimeException('Direct upload failed');
-        }
+        app(BlobStorage::class)->write($b, $data);
+        $b->update(['metadata' => json_encode(app(Media::class)->analyze($b))]);
 
         return response('', 204);
     }
@@ -112,7 +141,7 @@ final class StorageController extends Controller
     public function diskDownload(Request $r, string $signed, string $filename)
     {
         $token = app(RailsCrypto::class)->appVerify($signed, 'blob_key');
-        abort_unless(is_array($token) && ($token['service_name'] ?? '') === 'local', 404);
+        abort_unless(is_array($token) && ($token['service_name'] ?? '') === 'campfire', 404);
         $b = Blob::where('key', $token['key'] ?? null)->firstOrFail();
 
         return $this->blob($r, app(RailsCrypto::class)->signedId($b->id, 'ActiveStorage::Blob', 'blob_id'), $filename);

@@ -98,8 +98,7 @@ final class MessageWriter
         if (trim($plain) === '' && $filename) {
             $plain = $filename;
         }
-        DB::delete('DELETE FROM message_search_index WHERE rowid=?', [$message->id]);
-        DB::insert('INSERT INTO message_search_index(rowid,body) VALUES(?,?)', [$message->id, $plain]);
+        DB::table('message_search_index')->upsert(['message_id' => $message->id, 'body' => Search::normalize($plain)], 'message_id', ['body']);
     }
 
     public function destroy(Message $message): void
@@ -119,7 +118,7 @@ final class MessageWriter
             if ($blob) {
                 DB::afterCommit(fn () => app(BlobStorage::class)->purgeUnreferenced($blob));
             }
-            DB::delete('DELETE FROM message_search_index WHERE rowid=?', [$message->id]);
+            DB::table('message_search_index')->where('message_id', $message->id)->delete();
             $message->delete();
             $message->room->touch();
         });

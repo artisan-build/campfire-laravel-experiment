@@ -5,15 +5,26 @@ namespace App\Support;
 use App\Models\Attachment;
 use App\Models\Blob;
 use App\Models\Message;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Symfony\Component\Process\Process;
+use Illuminate\Support\Facades\Storage;
 
+/**
+ * Every uploaded byte goes through the Storage facade.
+ *
+ * Upstream wrote Rails' Active Storage on-disk layout with file_put_contents under STORAGE_PATH,
+ * which is instance-local and lost on redeploy. The object layout here is ours:
+ *
+ *   blobs/<key>                                  the original
+ *   variants/<key>/<variation digest>.<format>   a derived image
+ */
 final class BlobStorage
 {
+    /** @var array<int, array{blob: Blob, level: int}> */
     private array $pendingFiles = [];
 
     public function __construct()
@@ -33,13 +44,44 @@ final class BlobStorage
         });
     }
 
+    public function diskName(): string
+    {
+        return config('filesystems.default');
+    }
+
+    public function disk(): Filesystem
+    {
+        return Storage::disk($this->diskName());
+    }
+
+    /**
+     * Whether the disk can mint a URL that also carries the Content-Type and Content-Disposition the
+     * app wants. S3 can, through its Response* query parameters; a local disk's signed URL cannot, so
+     * development and tests stream the bytes instead.
+     */
+    public function signsResponses(): bool
+    {
+        return config('filesystems.disks.'.$this->diskName().'.driver') === 's3'
+            && $this->disk()->providesTemporaryUrls();
+    }
+
     public function path(Blob $blob): string
     {
-        if (! preg_match('/^[a-zA-Z0-9_-]{8,}$/', $blob->key)) {
+        return 'blobs/'.$this->key($blob);
+    }
+
+    public function variantDirectory(Blob $blob): string
+    {
+        return 'variants/'.$this->key($blob);
+    }
+
+    private function key(Blob $blob): string
+    {
+        if (! preg_match('/^[a-zA-Z0-9_-]{8,}$/', (string) $blob->key)) {
             throw new \RuntimeException('Invalid storage key');
         }
 
-        return config('campfire.files').'/'.substr($blob->key, 0, 2).'/'.substr($blob->key, 2, 2).'/'.$blob->key;
+        return $blob->key;
     }
 
     public function url(Blob $blob): string
@@ -56,7 +98,7 @@ final class BlobStorage
             $blob = $this->store($source);
         }
         try {
-            if (in_array($blob->content_type, ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'video/mp4', 'video/webm'])) {
+            if (app(Media::class)->previewable($blob)) {
                 app(Media::class)->variant($blob, ['resize_to_limit' => [1200, 800], 'format' => $this->thumbnailFormat($blob)]);
             }
         } catch (\Throwable $error) {
@@ -73,23 +115,13 @@ final class BlobStorage
 
     public function deleteFiles(Blob $blob): void
     {
-        $path = $this->path($blob);
-        if (is_file($path)) {
-            unlink($path);
-        }
-        $directory = config('campfire.files').'/variants/'.$blob->key;
-        if (is_dir($directory)) {
-            foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST) as $entry) {
-                $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-            }
-            rmdir($directory);
-        }
+        $this->disk()->delete($this->path($blob));
+        $this->disk()->deleteDirectory($this->variantDirectory($blob));
     }
 
     public function purgeUnreferenced(Blob $blob): void
     {
         if (! Attachment::where('blob_id', $blob->id)->exists()) {
-            DB::table('active_storage_variant_records')->where('blob_id', $blob->id)->delete();
             $blob->delete();
             $this->deleteFiles($blob);
         }
@@ -98,43 +130,28 @@ final class BlobStorage
     public function store(UploadedFile $source): Blob
     {
         $data = file_get_contents($source->getRealPath());
-        $blob = Blob::create(['key' => bin2hex(random_bytes(14)), 'filename' => basename($source->getClientOriginalName()), 'content_type' => $source->getMimeType(), 'metadata' => '{}', 'service_name' => 'local', 'byte_size' => strlen($data), 'checksum' => base64_encode(md5($data, true)), 'created_at' => now()]);
+        $blob = Blob::create([
+            'key' => bin2hex(random_bytes(14)),
+            'filename' => basename($source->getClientOriginalName()),
+            'content_type' => $source->getMimeType(),
+            'metadata' => '{}',
+            'service_name' => 'campfire',
+            'byte_size' => strlen($data),
+            'checksum' => base64_encode(md5($data, true)),
+            'created_at' => now(),
+        ]);
         if (DB::transactionLevel() > 0) {
             $this->pendingFiles[$blob->id] = ['blob' => $blob, 'level' => DB::transactionLevel()];
         }
-        $path = $this->path($blob);
-        if (! is_dir(dirname($path))) {
-            mkdir(dirname($path), 0755, true);
-        }if (file_put_contents($path, $data) !== strlen($data)) {
-            throw new \RuntimeException('Upload write failed');
-        }
-        $metadata = ['identified' => true, 'analyzed' => true];
-        if (str_starts_with($blob->content_type ?? '', 'image/')) {
-            $size = getimagesize($path);
-            if ($size) {
-                $metadata['width'] = $size[0];
-                $metadata['height'] = $size[1];
-            }
-        }
-        if (str_starts_with($blob->content_type ?? '', 'video/') || str_starts_with($blob->content_type ?? '', 'audio/')) {
-            $probe = new Process(['ffprobe', '-v', 'error', '-protocol_whitelist', 'file,pipe', '-show_streams', '-show_format', '-of', 'json', $path]);
-            $probe->setTimeout(20);
-            $probe->mustRun();
-            $information = json_decode($probe->getOutput(), true);
-            $metadata['duration'] = (float) ($information['format']['duration'] ?? 0);
-            foreach ($information['streams'] ?? [] as $stream) {
-                if (($stream['codec_type'] ?? '') === 'video') {
-                    $metadata['width'] = $stream['width'] ?? null;
-                    $metadata['height'] = $stream['height'] ?? null;
-                    $metadata['video'] = true;
-                } elseif (($stream['codec_type'] ?? '') === 'audio') {
-                    $metadata['audio'] = true;
-                }
-            }
-        }
-        $blob->update(['metadata' => json_encode($metadata)]);
+        $this->write($blob, $data);
+        $blob->update(['metadata' => json_encode(app(Media::class)->analyze($blob, $source->getRealPath()))]);
 
         return $blob;
+    }
+
+    public function write(Blob $blob, string $data): void
+    {
+        $this->disk()->write($this->path($blob), $data);
     }
 
     public function attachTo(string $type, int $id, string $name, UploadedFile $source): Blob

@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Boost;
 use App\Models\Message;
-use App\Support\Broadcasts;
+use App\Support\Broadcasting;
 use Illuminate\Http\Request;
 
 final class BoostsController extends Controller
@@ -35,7 +35,7 @@ final class BoostsController extends Controller
         $boost = Boost::create(['message_id' => $id, 'booster_id' => $r->user()->id, 'content' => $r->input('boost.content')]);
         $html = view('boosts.boost', ['boost' => $boost->load('booster')])->render();
         $s = app(ChatController::class)->stream('append', 'boosts_message_'.$m->client_message_id, $html);
-        app(Broadcasts::class)->room($m->room_id, $s);
+        app(Broadcasting::class)->room($m->room_id, $s);
 
         return redirect('/messages/'.$id.'/boosts');
     }
@@ -47,7 +47,7 @@ final class BoostsController extends Controller
         abort_unless($r->user()->id === $b->booster_id, 403);
         $b->delete();
         $s = app(ChatController::class)->stream('remove', 'boost_'.$boost, '');
-        app(Broadcasts::class)->room($m->room_id, $s);
+        app(Broadcasting::class)->room($m->room_id, $s);
 
         return response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
     }
