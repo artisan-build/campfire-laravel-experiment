@@ -53,6 +53,9 @@ cloud app:create --name=campfire --repository=<owner>/<repo> --source-provider=g
 
 # 2. Bind the repository so later commands know which app they mean.
 cloud repo:config <application id>
+# With more than one organisation token on the machine, `repo:config` cannot resolve the
+# organisation before an application exists. Write .cloud/config.json with just
+# {"organization_id": "org-..."} first, then run app:create, then repo:config.
 
 # 3. Serverless Postgres. The "Dev" preset is the only one that suspends when idle
 #    (cu 0.25, suspend_seconds 300); "Prod" and "Scale" set suspend_seconds to 0.
