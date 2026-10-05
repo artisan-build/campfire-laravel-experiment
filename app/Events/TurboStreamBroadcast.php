@@ -24,6 +24,17 @@ final class TurboStreamBroadcast implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets;
 
+    /**
+     * @return array{format: string, variants: list<string>}
+     */
+    public static function encoding(): array
+    {
+        return [
+            'format' => 'turbo-stream-html',
+            'variants' => ['inline', 'gzip+base64', 'refresh-pointer'],
+        ];
+    }
+
     public function __construct(
         public string $channel,
         public string $html,

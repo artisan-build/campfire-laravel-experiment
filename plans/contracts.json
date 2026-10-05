@@ -7,12 +7,14 @@
       "status": "pending"
     },
     "sessions": {
-      "status": "verified",
-      "evidence": "Independent 18 HTTP checks include actual Rails-issued and Laravel-issued permanent/encrypted cookies accepted bidirectionally. PHPUnit covers positive/negative cookie vectors."
+      "status": "superseded",
+      "superseded_by": "Laravel-native frontend plan section 3.2 and PR9",
+      "evidence": "Rails cookie compatibility remains the active implementation until the frontend migration reaches PR9, but it is no longer a required contract. Signed-id and sgid formats are retained separately."
     },
     "csrf": {
-      "status": "verified",
-      "evidence": "Every installed Rails masked/unmasked validity vector passes native tests."
+      "status": "superseded",
+      "superseded_by": "Laravel-native frontend plan section 3.2 and PR9",
+      "evidence": "Rails CSRF compatibility remains the active implementation until the frontend migration reaches PR9, but Laravel-native CSRF is the approved contract."
     },
     "rooms": {
       "status": "verified",

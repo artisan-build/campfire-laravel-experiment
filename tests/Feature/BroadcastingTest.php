@@ -6,11 +6,15 @@ use App\Events\RoomUnread;
 use App\Events\TurboStreamBroadcast;
 use App\Events\TypingNotification;
 use App\Http\Controllers\ChatController;
+use App\Models\Attachment;
+use App\Models\Blob;
+use App\Models\Boost;
 use App\Models\Membership;
 use App\Models\Message;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\MessageWriter;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -90,6 +94,65 @@ final class BroadcastingTest extends TestCase
         // Reverb's managed application caps a frame at 10 000 bytes.
         $this->assertLessThan(10000, strlen(json_encode($payload)));
         $this->assertArrayNotHasKey('oversize', $payload);
+    }
+
+    public function test_the_current_message_broadcast_stays_within_the_application_payload_budget(): void
+    {
+        [$author, $room] = $this->fixture();
+        $body = '<p>'.substr(str_repeat(hash('sha256', 'frame-budget-fixture'), 65), 0, 4096).'</p>';
+        $message = app(MessageWriter::class)->create($room, $author, ['body' => $body]);
+        $blob = Blob::create([
+            'key' => 'framebudgetattachment',
+            'filename' => 'quarterly-plan.pdf',
+            'content_type' => 'application/pdf',
+            'metadata' => '{}',
+            'service_name' => 'campfire',
+            'byte_size' => 4096,
+            'created_at' => now(),
+        ]);
+        Attachment::create([
+            'name' => 'attachment',
+            'record_type' => 'Message',
+            'record_id' => $message->id,
+            'blob_id' => $blob->id,
+            'created_at' => now(),
+        ]);
+
+        foreach (range(1, 10) as $number) {
+            $booster = User::create(['name' => 'Budget Booster '.$number, 'role' => 0, 'status' => 0]);
+            Boost::create(['message_id' => $message->id, 'booster_id' => $booster->id, 'content' => 'boost-'.$number]);
+        }
+
+        $message = Message::presentation()->findOrFail($message->id);
+        $this->assertSame(10, $message->boosts()->count());
+        $this->assertSame('quarterly-plan.pdf', $message->attachment()->firstOrFail()->blob()->firstOrFail()->filename);
+
+        $html = app(ChatController::class)->stream('append', 'messages_room_'.$room->id, view('messages.message', compact('message'))->render());
+        $payload = (new TurboStreamBroadcast('rooms.'.$room->id, $html, $room->id))->broadcastWith();
+        $budget = 7000;
+
+        $this->assertStringContainsString('quarterly-plan.pdf', $html);
+        $this->assertStringContainsString('boost-10', $html);
+        $this->assertSame($budget, config('campfire.broadcast_payload_limit'));
+        $this->assertArrayHasKey('gz', $payload, 'The representative message must exercise a real payload, not the refresh pointer');
+        $this->assertLessThanOrEqual(
+            $budget,
+            strlen(json_encode($payload, JSON_THROW_ON_ERROR)),
+            'The serialized application payload exceeded its 7,000-byte Reverb safety budget',
+        );
+    }
+
+    public function test_doctor_reports_the_active_broadcast_encoding(): void
+    {
+        $this->assertSame([
+            'format' => 'turbo-stream-html',
+            'variants' => ['inline', 'gzip+base64', 'refresh-pointer'],
+        ], TurboStreamBroadcast::encoding());
+
+        $this->assertSame(0, Artisan::call('campfire:doctor'));
+        $output = Artisan::output();
+        $this->assertStringContainsString('broadcast encoding', $output);
+        $this->assertStringContainsString('turbo-stream-html (inline, gzip+base64, refresh-pointer)', $output);
     }
 
     public function test_the_typing_endpoint_broadcasts_only_for_members(): void
