@@ -122,7 +122,9 @@ final class TailwindChromeTest extends TestCase
         $message = app(MessageWriter::class)->create($room, $user, ['body' => '<p>Timestamp ownership fixture</p>']);
         $this->auth($user);
 
-        $document = $this->document($this->get('/rooms/'.$room->id)->assertOk());
+        $response = $this->get('/rooms/'.$room->id)->assertOk();
+        $html = $response->getContent();
+        $document = $this->document($response);
         $xpath = new DOMXPath($document);
         $controllers = $xpath->query('//*[@data-controller and contains(concat(" ", normalize-space(@data-controller), " "), " local-time ")]');
 
@@ -140,8 +142,10 @@ final class TailwindChromeTest extends TestCase
 
         $template = $templates->item(0);
         $this->assertNotNull($template);
-        $this->assertSame(1, substr_count($template->textContent, 'data-local-time-target="date"'));
-        $this->assertSame(1, substr_count($template->textContent, 'data-local-time-target="time"'));
+
+        $this->assertSame(1, preg_match_all('/<script\b(?=[^>]*\btype="text\/template")(?=[^>]*\bdata-messages-target="template")[^>]*>(?<body>.*?)<\/script>/is', $html, $rawTemplates));
+        $this->assertSame(1, substr_count($rawTemplates['body'][0], 'data-local-time-target="date"'));
+        $this->assertSame(1, substr_count($rawTemplates['body'][0], 'data-local-time-target="time"'));
     }
 
     public function test_account_bots_navigation_is_visible_without_a_breakpoint(): void
