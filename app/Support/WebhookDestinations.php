@@ -11,37 +11,47 @@ final class WebhookDestinations
     public const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
 
     /** @var list<string> */
-    private const NON_PUBLIC_IPV4_RANGES = [
-        '0.0.0.0/8',
-        '10.0.0.0/8',
-        '100.64.0.0/10',
-        '127.0.0.0/8',
-        '169.254.0.0/16',
-        '172.16.0.0/12',
-        '192.0.0.0/24',
-        '192.0.2.0/24',
+    private const IANA_GLOBAL_IPV4_RANGES = [
+        '192.0.0.9/32',
+        '192.0.0.10/32',
         '192.31.196.0/24',
         '192.52.193.0/24',
-        '192.88.99.0/24',
-        '192.168.0.0/16',
         '192.175.48.0/24',
-        '198.18.0.0/15',
-        '198.51.100.0/24',
-        '203.0.113.0/24',
-        '224.0.0.0/4',
-        '240.0.0.0/4',
     ];
 
     /** @var list<string> */
-    private const SPECIAL_IPV6_RANGES = [
-        '2001::/23',
-        '2001:db8::/32',
+    private const PHP_GLOBAL_IPV4_EXCLUSIONS = [
+        '192.88.99.0/24',
+        '224.0.0.0/4',
+    ];
+
+    /** @var list<string> */
+    private const IANA_GLOBAL_IPV6_RANGES = [
+        '2001:1::1/128',
+        '2001:1::2/128',
+        '2001:1::3/128',
+        '2001:3::/32',
+        '2001:4:112::/48',
+        '2001:20::/28',
+        '2001:30::/28',
         '2620:4f:8000::/48',
+    ];
+
+    /** @var list<string> */
+    private const PHP_GLOBAL_IPV6_EXCLUSIONS = [
+        '100:0:0:1::/64',
         '3fff::/20',
+        '5f00::/16',
+        'ff00::/8',
     ];
 
     /** @var list<string> */
     private const TRANSITION_IPV6_RANGES = [
+        '::/96',
+        '::ffff:0:0/96',
+        '64:ff9b::/96',
+        '64:ff9b:1::/48',
+        '2001::/32',
         '2002::/16',
     ];
 
@@ -137,17 +147,29 @@ final class WebhookDestinations
 
     private function publicAddress(string $address): bool
     {
-        if (! filter_var($address, FILTER_VALIDATE_IP)) {
+        if (filter_var($address, FILTER_VALIDATE_IP) === false) {
             return false;
         }
 
-        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            return ! IpUtils::checkIp($address, self::NON_PUBLIC_IPV4_RANGES);
+        $packed = inet_pton($address);
+        $normalized = $packed === false ? false : inet_ntop($packed);
+        if ($normalized === false) {
+            return false;
         }
 
-        return IpUtils::checkIp($address, '2000::/3')
-            && ! IpUtils::checkIp($address, self::SPECIAL_IPV6_RANGES)
-            && ! IpUtils::checkIp($address, self::TRANSITION_IPV6_RANGES);
+        if (strlen($packed) === 4) {
+            return IpUtils::checkIp($normalized, self::IANA_GLOBAL_IPV4_RANGES)
+                || (filter_var($normalized, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_GLOBAL_RANGE) !== false
+                    && ! IpUtils::checkIp($normalized, self::PHP_GLOBAL_IPV4_EXCLUSIONS));
+        }
+
+        if (IpUtils::checkIp($normalized, self::TRANSITION_IPV6_RANGES)) {
+            return false;
+        }
+
+        return IpUtils::checkIp($normalized, self::IANA_GLOBAL_IPV6_RANGES)
+            || (filter_var($normalized, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 | FILTER_FLAG_GLOBAL_RANGE) !== false
+                && ! IpUtils::checkIp($normalized, self::PHP_GLOBAL_IPV6_EXCLUSIONS));
     }
 
     /** @return list<string> */
