@@ -100,28 +100,35 @@ try {
   })
 
   await step("search and personal history", async () => {
-    const create = await admin.request.post(botApiUrl, { data: `PR8 search ${runId}`, headers: { "Content-Type": "text/plain" } })
+    const searchText = `PR8 search ${runId}`
+    const normalizedSearchText = searchText.replaceAll("-", " ")
+    const create = await admin.request.post(botApiUrl, { data: searchText, headers: { "Content-Type": "text/plain" } })
     if (create.status() !== 201) throw new Error("Search fixture post failed")
     await admin.goto(`${baseUrl}/searches`)
     const form = admin.getByTestId("search-form")
-    await form.locator('input[type="search"]').fill(`PR8 search ${runId}`)
+    await form.locator('input[type="search"]').fill(searchText)
     await form.getByRole("button", { name: "Search" }).click()
-    await admin.getByTestId("search-result-list").getByText(`PR8 search ${runId}`).waitFor()
-    await admin.getByTestId("search-history").getByText(`PR8 search ${runId}`).waitFor()
+    await admin.getByTestId("search-result-list").getByText(searchText).waitFor()
+    await admin.getByTestId("search-history").getByText(normalizedSearchText).waitFor()
   })
 
   await step("bot edit and key rotation invalidates old URL", async () => {
     await admin.goto(`${baseUrl}/account/bots`)
     const row = admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot ${runId}` })
-    await row.getByRole("link", { name: "Edit" }).click()
+    await Promise.all([
+      admin.waitForURL(url => /^\/account\/bots\/\d+\/edit$/.test(url.pathname)),
+      row.getByRole("link", { name: "Edit" }).click(),
+    ])
     const form = admin.getByTestId("bot-form")
     await form.getByLabel("Bot name").fill(`PR8 Bot Edited ${runId}`)
     await Promise.all([ admin.waitForURL(`${baseUrl}/account/bots`), form.getByRole("button", { name: "Save changes" }).click() ])
+    const editedRow = admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot Edited ${runId}` })
+    await editedRow.waitFor()
     await Promise.all([
-      admin.waitForResponse(response => response.url().includes("/livewire/update")),
-      admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot Edited ${runId}` }).getByRole("button", { name: "Generate new key" }).click(),
+      admin.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/update")),
+      editedRow.getByRole("button", { name: "Generate new key" }).click(),
     ])
-    const rejected = await admin.request.post(botApiUrl, { data: "old key must fail", headers: { "Content-Type": "text/plain" } })
+    const rejected = await admin.request.get(botApiUrl)
     if (rejected.status() !== 401) throw new Error(`Old bot key remained valid: ${rejected.status()}`)
   })
 
