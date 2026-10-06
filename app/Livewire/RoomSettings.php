@@ -4,10 +4,12 @@ namespace App\Livewire;
 
 use App\Models\Room;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 final class RoomSettings extends Component
 {
+    #[Locked]
     public Room $room;
 
     public function mount(Room $room): void

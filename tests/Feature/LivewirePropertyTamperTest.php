@@ -14,9 +14,11 @@ use App\Models\Room;
 use App\Models\User;
 use App\Support\BlobStorage;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\TestCase;
@@ -24,40 +26,33 @@ use Throwable;
 
 final class LivewirePropertyTamperTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        config(['app.debug' => false]);
-    }
-
     public function test_room_form_rejects_client_tampering_with_direct_kind_without_mutation(): void
     {
         [$owner, $room] = $this->fixture();
         $member = User::create(['name' => 'Member', 'role' => 0, 'status' => 0]);
         Membership::create(['room_id' => $room->id, 'user_id' => $member->id, 'involvement' => 'mentions']);
 
-        $component = Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
+        $error = $this->capture(fn () => Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
             ->set('name', 'Compromised')
             ->set('selected', [$owner->id])
-            ->set('kind', 'directs');
+            ->set('kind', 'directs'));
 
+        $this->assertLockedProperty($error, 'kind');
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'name' => 'Watercooler', 'type' => 'Rooms::Open']);
         $this->assertEqualsCanonicalizing([$owner->id, $member->id], $room->fresh()->users()->pluck('users.id')->all());
-        $component->assertStatus(419);
     }
 
     public function test_room_form_rejects_client_tampering_with_invalid_kind_without_mutation(): void
     {
         [$owner, $room] = $this->fixture();
 
-        $component = Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
+        $error = $this->capture(fn () => Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
             ->set('name', 'Compromised')
-            ->set('kind', 'not-a-kind');
+            ->set('kind', 'not-a-kind'));
 
+        $this->assertLockedProperty($error, 'kind');
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'name' => 'Watercooler', 'type' => 'Rooms::Open']);
         $this->assertDatabaseCount('memberships', 1);
-        $component->assertStatus(419);
     }
 
     public function test_room_form_rejects_client_room_substitution_without_mutating_either_room(): void
@@ -66,13 +61,13 @@ final class LivewirePropertyTamperTest extends TestCase
         $substitute = Room::create(['name' => 'Substitute', 'type' => 'Rooms::Closed', 'creator_id' => $owner->id]);
         Membership::create(['room_id' => $substitute->id, 'user_id' => $owner->id, 'involvement' => 'everything']);
 
-        $component = Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
+        $error = $this->capture(fn () => Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
             ->set('name', 'Compromised')
-            ->set('room', $substitute);
+            ->set('room', $substitute));
 
+        $this->assertLockedProperty($error, 'room');
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'name' => 'Watercooler', 'type' => 'Rooms::Open']);
         $this->assertDatabaseHas('rooms', ['id' => $substitute->id, 'name' => 'Substitute', 'type' => 'Rooms::Closed']);
-        $component->assertStatus(419);
     }
 
     public function test_room_involvement_rejects_client_room_substitution_without_mutation(): void
@@ -81,13 +76,13 @@ final class LivewirePropertyTamperTest extends TestCase
         $substitute = Room::create(['name' => 'Substitute', 'type' => 'Rooms::Closed', 'creator_id' => $owner->id]);
         Membership::create(['room_id' => $substitute->id, 'user_id' => $owner->id, 'involvement' => 'nothing']);
 
-        $component = Livewire::actingAs($owner)->test(RoomInvolvement::class, ['roomId' => $room->id])
+        $error = $this->capture(fn () => Livewire::actingAs($owner)->test(RoomInvolvement::class, ['roomId' => $room->id])
             ->set('involvement', 'everything')
-            ->set('roomId', $substitute->id);
+            ->set('roomId', $substitute->id));
 
+        $this->assertLockedProperty($error, 'roomId');
         $this->assertDatabaseHas('memberships', ['room_id' => $room->id, 'user_id' => $owner->id, 'involvement' => 'mentions']);
         $this->assertDatabaseHas('memberships', ['room_id' => $substitute->id, 'user_id' => $owner->id, 'involvement' => 'nothing']);
-        $component->assertStatus(419);
     }
 
     public function test_room_settings_rejects_client_substitution_to_an_unviewable_room(): void
@@ -97,12 +92,12 @@ final class LivewirePropertyTamperTest extends TestCase
         $secret = Room::create(['name' => 'Secret', 'type' => 'Rooms::Closed', 'creator_id' => $stranger->id]);
         Membership::create(['room_id' => $secret->id, 'user_id' => $stranger->id, 'involvement' => 'everything']);
 
-        $component = Livewire::actingAs($owner)->test(RoomSettings::class, ['room' => $room])
-            ->set('room', $secret);
+        $error = $this->capture(fn () => Livewire::actingAs($owner)->test(RoomSettings::class, ['room' => $room])
+            ->set('room', $secret));
 
+        $this->assertLockedProperty($error, 'room');
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'name' => 'Watercooler']);
         $this->assertDatabaseHas('rooms', ['id' => $secret->id, 'name' => 'Secret']);
-        $component->assertStatus(419);
     }
 
     public function test_room_form_save_policy_denies_server_side_direct_transition_without_mutation(): void
@@ -111,14 +106,16 @@ final class LivewirePropertyTamperTest extends TestCase
         $member = User::create(['name' => 'Member', 'role' => 0, 'status' => 0]);
         Membership::create(['room_id' => $room->id, 'user_id' => $member->id, 'involvement' => 'mentions']);
         $component = Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room]);
-        $component->instance()->kind = 'directs';
-        $component->instance()->name = 'Compromised';
-        $component->instance()->selected = [$owner->id];
+        $instance = $component->instance();
+        $this->assertInstanceOf(RoomForm::class, $instance);
+        $instance->kind = 'directs';
+        $instance->name = 'Compromised';
+        $instance->selected = [$owner->id];
 
-        $error = $this->capture(fn () => $component->instance()->save());
+        $error = $this->capture(fn () => $instance->save());
 
         $this->assertInstanceOf(AuthorizationException::class, $error);
-        $this->assertSame(403, $error->status());
+        $this->assertSame(403, app(ExceptionHandler::class)->render(request(), $error)->getStatusCode());
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'name' => 'Watercooler', 'type' => 'Rooms::Open']);
         $this->assertEqualsCanonicalizing([$owner->id, $member->id], $room->fresh()->users()->pluck('users.id')->all());
     }
@@ -127,10 +124,12 @@ final class LivewirePropertyTamperTest extends TestCase
     {
         [$owner, $room] = $this->fixture();
         $component = Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room]);
-        $component->instance()->kind = 'closeds';
-        $component->instance()->name = 'Private room';
+        $instance = $component->instance();
+        $this->assertInstanceOf(RoomForm::class, $instance);
+        $instance->kind = 'closeds';
+        $instance->name = 'Private room';
 
-        $component->instance()->save();
+        $instance->save();
 
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'name' => 'Private room', 'type' => 'Rooms::Closed']);
     }
@@ -139,10 +138,12 @@ final class LivewirePropertyTamperTest extends TestCase
     {
         [$owner, $room] = $this->fixture();
         $component = Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room]);
-        $component->instance()->kind = 'not-a-kind';
-        $component->instance()->name = 'Compromised';
+        $instance = $component->instance();
+        $this->assertInstanceOf(RoomForm::class, $instance);
+        $instance->kind = 'not-a-kind';
+        $instance->name = 'Compromised';
 
-        $error = $this->capture(fn () => $component->instance()->save());
+        $error = $this->capture(fn () => $instance->save());
 
         $this->assertInstanceOf(HttpExceptionInterface::class, $error);
         $this->assertSame(404, $error->getStatusCode());
@@ -250,6 +251,12 @@ final class LivewirePropertyTamperTest extends TestCase
         }
 
         return null;
+    }
+
+    private function assertLockedProperty(?Throwable $error, string $property): void
+    {
+        $this->assertInstanceOf(CannotUpdateLockedPropertyException::class, $error);
+        $this->assertSame($property, $error->property);
     }
 
     private function attachFixture(string $recordType, int $recordId, string $name, string $key, string $contents): Blob

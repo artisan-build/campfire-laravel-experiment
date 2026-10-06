@@ -10,12 +10,15 @@ use App\Support\MessageWriter;
 use App\Support\SidebarEvents;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 final class RoomForm extends Component
 {
+    #[Locked]
     public string $kind;
 
+    #[Locked]
     public ?Room $room = null;
 
     public string $name = '';
@@ -41,36 +44,40 @@ final class RoomForm extends Component
 
     public function changeKind(string $kind): void
     {
-        abort_unless(in_array($kind, ['opens', 'closeds'], true), 404);
-        $this->room
-            ? Gate::authorize('update', $this->room)
-            : Gate::authorize('create', [Room::class, $kind]);
-        $this->kind = $kind;
+        $targetKind = RoomKind::fromRoute($kind);
+        if ($this->room) {
+            Gate::authorize('transitionKind', [$this->room, $targetKind]);
+        } else {
+            abort_if($targetKind === RoomKind::Direct, 404);
+            Gate::authorize('create', [Room::class, $targetKind->value]);
+        }
+        $this->kind = $targetKind->value;
     }
 
     public function save()
     {
+        $kind = RoomKind::fromRoute($this->kind);
         $this->room
-            ? Gate::authorize('update', $this->room)
-            : Gate::authorize('create', [Room::class, $this->kind]);
+            ? Gate::authorize('transitionKind', [$this->room, $kind])
+            : Gate::authorize('create', [Room::class, $kind->value]);
 
         $validated = $this->validate([
-            'name' => $this->kind === 'directs' ? 'nullable|string|max:255' : 'required|string|max:255',
+            'name' => $kind === RoomKind::Direct ? 'nullable|string|max:255' : 'required|string|max:255',
             'selected' => 'array',
             'selected.*' => 'integer',
         ]);
         $ids = User::active()->whereIn('id', $validated['selected'])->pluck('id')->all();
-        if ($this->kind === 'opens') {
+        if ($kind === RoomKind::Open) {
             $ids = User::pluck('id')->all();
-        } elseif ($this->kind === 'directs') {
+        } elseif ($kind === RoomKind::Direct) {
             $ids[] = $this->user()->id;
             $ids = array_values(array_unique($ids));
             sort($ids);
         }
 
         $previousMembers = $this->room?->users()->pluck('users.id')->all() ?? [];
-        $room = DB::transaction(function () use ($ids): Room {
-            if (! $this->room && $this->kind === 'directs') {
+        $room = DB::transaction(function () use ($ids, $kind): Room {
+            if (! $this->room && $kind === RoomKind::Direct) {
                 foreach (Room::where('type', 'Rooms::Direct')->with('users')->get() as $candidate) {
                     if ($candidate->users->pluck('id')->sort()->values()->all() === $ids) {
                         return $candidate;
@@ -79,11 +86,11 @@ final class RoomForm extends Component
             }
 
             $room = $this->room ?? Room::create([
-                'name' => $this->kind === 'directs' ? null : $this->name,
-                'type' => $this->type(),
+                'name' => $kind === RoomKind::Direct ? null : $this->name,
+                'type' => $kind->roomType(),
                 'creator_id' => $this->user()->id,
             ]);
-            $room->update(['name' => $this->kind === 'directs' ? null : $this->name, 'type' => $this->type()]);
+            $room->update(['name' => $kind === RoomKind::Direct ? null : $this->name, 'type' => $kind->roomType()]);
             $room->memberships()->whereNotIn('user_id', $ids)->delete();
             foreach ($ids as $id) {
                 Membership::firstOrCreate(
@@ -140,11 +147,6 @@ final class RoomForm extends Component
         abort_unless($user instanceof User, 403);
 
         return $user;
-    }
-
-    private function type(): string
-    {
-        return RoomKind::fromRoute($this->kind)->roomType();
     }
 
     private function kindFor(Room $room): string

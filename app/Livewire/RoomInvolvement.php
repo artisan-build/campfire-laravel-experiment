@@ -5,10 +5,12 @@ namespace App\Livewire;
 use App\Models\Membership;
 use App\Models\User;
 use App\Support\SidebarEvents;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 final class RoomInvolvement extends Component
 {
+    #[Locked]
     public int $roomId;
 
     public string $involvement;

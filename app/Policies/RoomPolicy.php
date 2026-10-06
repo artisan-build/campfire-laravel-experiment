@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\RoomKind;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,13 @@ final class RoomPolicy
         return $room->type !== 'Rooms::Direct'
             && $this->view($user, $room)
             && ($user->role === 1 || $room->creator_id === $user->id);
+    }
+
+    public function transitionKind(User $user, Room $room, RoomKind $kind): bool
+    {
+        return $this->update($user, $room)
+            && in_array($room->type, ['Rooms::Open', 'Rooms::Closed'], true)
+            && in_array($kind, [RoomKind::Open, RoomKind::Closed], true);
     }
 
     public function delete(User $user, Room $room): bool
