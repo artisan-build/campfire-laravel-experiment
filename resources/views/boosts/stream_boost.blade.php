@@ -1,5 +1,5 @@
 <div id="boost_{{ $boost->id }}" class="boost boost-item flex-inline max-width align-center fill-white gap" data-boost-id="{{ $boost->id }}" data-booster-id="{{ $boost->booster_id }}">
-    <figure class="avatar boost__avatar flex-item-no-shrink"><a class="btn avatar" href="{{ route('users.show', $boost->booster_id) }}"><img src="{{ $boost->booster->avatarUrl() }}" width="48" height="48" alt="{{ $boost->booster->name }} boosted {{ $boost->content }}"></a></figure>
+    <figure class="avatar boost__avatar flex-item-no-shrink"><a class="btn avatar" href="{{ route('users.show', $boost->booster_id, absolute: false) }}"><img src="{{ $boost->booster->avatarUrl() }}" width="48" height="48" alt="{{ $boost->booster->name }} boosted {{ $boost->content }}"></a></figure>
     <span class="txt-small" @if((int) $boost->booster_id === (int) $currentUser->id) role="button" tabindex="0" aria-describedby="delete_boost_accessible_label" data-stream-action="reveal-boost" @endif>{{ $boost->content }}</span>
     @if((int) $boost->booster_id === (int) $currentUser->id)<button type="button" class="btn btn--negative boost__delete" data-stream-action="remove-boost" aria-label="Delete this boost">−</button>@endif
 </div>

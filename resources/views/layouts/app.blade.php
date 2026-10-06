@@ -13,7 +13,7 @@
 <meta name="current-user-id" content="{{ $currentUser->id }}"><meta name="current-user-name" content="{{ $currentUser->name }}">
 @endif
 <meta name="vapid-public-key" content="{{ app(\App\Support\Vapid::class)->publicKey() }}">@unless(config('campfire.json_message_stream'))<meta name="turbo-prefetch" content="true">@endunless
-<link rel="manifest" href="{{ route('manifest.json') }}"><link rel="icon" href="{{ route('account.logo') }}" type="image/png"><link rel="apple-touch-icon" href="{{ route('account.logo') }}">
+<link rel="manifest" href="{{ route('manifest.json', absolute: false) }}"><link rel="icon" href="{{ route('account.logo', absolute: false) }}" type="image/png"><link rel="apple-touch-icon" href="{{ route('account.logo', absolute: false) }}">
 {!! $assets->head() !!}
 @livewireStyles
 @yield('head')

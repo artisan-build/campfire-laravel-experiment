@@ -13,14 +13,14 @@
         <section class="grid gap-4 rounded-2xl bg-orange-50 p-5 dark:bg-orange-950/40" data-testid="settings-invitations">
             @php($joinUrl = route('join', ['code' => $account->join_code]))
             <div><h2 class="text-xl font-bold">Invite people</h2><p class="break-all text-sm text-stone-600 dark:text-stone-300">{{ $joinUrl }}</p></div>
-            <div class="flex flex-wrap gap-2"><span x-data="clipboard(@js($joinUrl))"><x-ui.button @click="copy()" x-bind:class="{ 'bg-emerald-600 text-white': copied }"><span x-text="copied ? 'Copied' : 'Copy invitation link'">Copy invitation link</span></x-ui.button></span><x-ui.button href="{{ route('qr-code', ['id' => rtrim(strtr(base64_encode($joinUrl), '+/', '-_'), '=')]) }}">QR code</x-ui.button>@if($currentUser->role === 1)<x-ui.button type="button" wire:click="resetJoinCode" wire:confirm="Are you sure you want to generate a new invite code?" variant="danger">Reset invite link</x-ui.button>@endif</div>
+            <div class="flex flex-wrap gap-2"><span x-data="clipboard(@js($joinUrl))"><x-ui.button @click="copy()" x-bind:class="{ 'bg-emerald-600 text-white': copied }"><span x-text="copied ? 'Copied' : 'Copy invitation link'">Copy invitation link</span></x-ui.button></span><x-ui.button href="{{ route('qr-code', ['id' => rtrim(strtr(base64_encode($joinUrl), '+/', '-_'), '=')], absolute: false) }}">QR code</x-ui.button>@if($currentUser->role === 1)<x-ui.button type="button" wire:click="resetJoinCode" wire:confirm="Are you sure you want to generate a new invite code?" variant="danger">Reset invite link</x-ui.button>@endif</div>
         </section>
         <section class="grid gap-3" data-testid="account-people">
             <h2 class="text-xl font-bold">People</h2>
             @foreach($users as $user)
                 <div wire:key="account-user-{{ $user->id }}" class="flex flex-wrap items-center gap-3 rounded-2xl border border-stone-200 p-3 dark:border-stone-700 {{ $user->status === 2 ? 'opacity-50' : '' }}"><img class="size-10 rounded-full object-cover" src="{{ $user->avatarUrl() }}" width="40" height="40" loading="lazy" alt=""><strong class="min-w-0 flex-1 truncate">{{ $user->name }}</strong>
                     @if($currentUser->role === 1 && $user->status === 0 && $user->id !== $currentUser->id)<x-ui.button type="button" wire:click="toggleAdministrator({{ $user->id }})">{{ $user->role === 1 ? 'Remove admin' : 'Make admin' }}</x-ui.button><x-ui.button type="button" wire:click="deleteMember({{ $user->id }})" wire:confirm="Are you sure you want to permanently remove this person?" variant="danger">Delete</x-ui.button>@endif
-                    @if($user->id === $currentUser->id)<x-ui.button href="{{ route('profile.show', ['user' => 'me']) }}" variant="ghost">My settings</x-ui.button>@endif
+                    @if($user->id === $currentUser->id)<x-ui.button href="{{ route('profile.show', ['user' => 'me'], absolute: false) }}" variant="ghost">My settings</x-ui.button>@endif
                 </div>
             @endforeach
         </section>

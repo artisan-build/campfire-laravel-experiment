@@ -1,13 +1,13 @@
 <turbo-frame id="edit_message_{{ $message->client_message_id }}">
 <div class="message__body position-relative" data-controller="scroll-into-view">
     <div class="message__body-content message__body-content--editing gap"><div class="composer--edit composer--rich-text">
-        <form action="{{ route('messages.update', ['room' => $message->room_id, 'id' => $message->id]) }}" method="post" id="form_message_{{ $message->client_message_id }}" data-controller="form" data-action="lexxy:file-accept->form#preventAttachment keydown.esc->form#cancel keydown.ctrl+enter->form#submit:prevent keydown.meta+enter->form#submit:prevent">
+        <form action="{{ route('messages.update', ['room' => $message->room_id, 'id' => $message->id], absolute: false) }}" method="post" id="form_message_{{ $message->client_message_id }}" data-controller="form" data-action="lexxy:file-accept->form#preventAttachment keydown.esc->form#cancel keydown.ctrl+enter->form#submit:prevent keydown.meta+enter->form#submit:prevent">
             @csrf @method('PATCH')
-            <lexxy-editor name="message[body]" class="input lexxy-content" aria-label="Edit message" autofocus permitted-attachment-types="application/vnd.campfire.mention application/vnd.actiontext.opengraph-embed">{{ $message->richText?->body }}<lexxy-prompt trigger="@" src="{{ route('users.autocomplete', ['room_id' => $message->room_id]) }}" min-query-length="0" name="mention"></lexxy-prompt></lexxy-editor>
-            <a href="{{ route('messages.show', ['room' => $message->room_id, 'id' => $message->id]) }}" data-form-target="cancel" hidden>Close editor and discard changes</a>
+            <lexxy-editor name="message[body]" class="input lexxy-content" aria-label="Edit message" autofocus permitted-attachment-types="application/vnd.campfire.mention application/vnd.actiontext.opengraph-embed">{{ $message->richText?->body }}<lexxy-prompt trigger="@" src="{{ route('users.autocomplete', ['room_id' => $message->room_id], absolute: false) }}" min-query-length="0" name="mention"></lexxy-prompt></lexxy-editor>
+            <a href="{{ route('messages.show', ['room' => $message->room_id, 'id' => $message->id], absolute: false) }}" data-form-target="cancel" hidden>Close editor and discard changes</a>
             <div class="message__edit-btns"><button type="submit" class="btn btn--reversed"><span>Save changes</span></button><button type="submit" form="delete_form_message_{{ $message->client_message_id }}" class="btn btn--negative" data-confirm="Are you sure you want to delete this message?" data-turbo-confirm="Are you sure you want to delete this message?">Delete message</button></div>
         </form>
     </div></div>
-    <form action="{{ route('messages.destroy', ['room' => $message->room_id, 'id' => $message->id]) }}" method="post" id="delete_form_message_{{ $message->client_message_id }}">@csrf @method('DELETE')</form>
+    <form action="{{ route('messages.destroy', ['room' => $message->room_id, 'id' => $message->id], absolute: false) }}" method="post" id="delete_form_message_{{ $message->client_message_id }}">@csrf @method('DELETE')</form>
 </div>
 </turbo-frame>
