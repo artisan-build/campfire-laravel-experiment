@@ -115,8 +115,6 @@ final class RoomForm extends Component
 
         Gate::authorize('delete', $this->room);
         $previousMembers = $this->room->users()->pluck('users.id')->all();
-        $roomId = $this->room->id;
-        $open = $this->room->type === 'Rooms::Open';
 
         DB::transaction(function (): void {
             foreach ($this->room->messages()->get() as $message) {
@@ -126,9 +124,6 @@ final class RoomForm extends Component
             $this->room->delete();
         });
 
-        if ($open) {
-            app(SidebarEvents::class)->globalRemove($roomId);
-        }
         app(SidebarEvents::class)->refresh($previousMembers);
 
         return $this->redirect('/');

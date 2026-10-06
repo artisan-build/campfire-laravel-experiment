@@ -113,9 +113,6 @@ final class RoomsController extends Controller
             $room->delete();
         });
 
-        if ($room->type === 'Rooms::Open') {
-            app(SidebarEvents::class)->globalRemove($room->id);
-        }
         app(SidebarEvents::class)->refresh($previousMembers);
 
         return redirect('/');
