@@ -2,14 +2,17 @@
 
 namespace App\Http\Middleware;
 
+use App\Auth\CampfireSession;
 use App\Models\User;
-use App\Support\RailsCrypto;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 final class AuthenticateCampfire
 {
+    public function __construct(private readonly CampfireSession $campfireSession) {}
+
     public function handle(Request $request, Closure $next)
     {
         if (DB::table('bans')->where('ip_address', $request->ip())->exists()) {
@@ -22,10 +25,8 @@ final class AuthenticateCampfire
                 abort(403);
             }
         }
-        $crypto = app(RailsCrypto::class);
-        $token = $crypto->verifyCookie('session_token', $request->cookie('session_token'));
-        $session = is_string($token) ? DB::table('sessions')->where('token', $token)->first() : null;
-        $user = $session ? User::active()->find($session->user_id) : null;
+        $session = $this->campfireSession->session($request);
+        $user = $this->campfireSession->user($request, includeBots: true);
         if (! $user) {
             $request->session()->put('return_to', $request->getRequestUri());
 
@@ -34,9 +35,9 @@ final class AuthenticateCampfire
         if ($user->role === 2) {
             abort(403);
         }
+        Auth::guard()->setUser($user);
         $request->attributes->set('campfire_user', $user);
         view()->share('currentUser', $user);
-        $request->setUserResolver(fn () => $user);
         if (strtotime($session->last_active_at) < time() - 3600) {
             DB::table('sessions')->where('id', $session->id)->update(['last_active_at' => now(), 'updated_at' => now(), 'user_agent' => $request->userAgent(), 'ip_address' => $request->ip()]);
         }

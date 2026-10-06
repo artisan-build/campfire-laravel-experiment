@@ -36,6 +36,28 @@ final class AssetHeadTest extends TestCase
         $this->assertStringContainsString('campfire/echo/stream_source', $html);
     }
 
+    public function test_livewire_is_the_only_alpine_owner_and_campfire_registrations_are_preserved(): void
+    {
+        $this->fixture();
+        $html = $this->get('/session/new')->assertOk()->getContent();
+        $alpine = file_get_contents(public_path('assets/campfire/alpine.js'));
+        $messageStream = file_get_contents(public_path('assets/campfire/message_stream.js'));
+
+        $this->assertSame(1, substr_count($html, 'livewire.js'));
+        $this->assertMatchesRegularExpression('/<script src="[^"]*livewire\.js\?id=[^"]+"[^>]*data-update-uri=/', $html);
+        $this->assertStringNotContainsString('alpine.esm', $html);
+        $this->assertStringNotContainsString('import Alpine', $alpine);
+        $this->assertStringNotContainsString('Alpine.start()', $alpine);
+        $this->assertStringNotContainsString('import Alpine', $messageStream);
+        $this->assertStringContainsString('document.addEventListener("livewire:init"', $alpine);
+        $this->assertStringContainsString('document.addEventListener("livewire:init"', $messageStream);
+
+        foreach (['appShell', 'clipboard', 'dropTarget', 'messagePopup', 'softKeyboard', 'webShare'] as $registration) {
+            $this->assertStringContainsString('Alpine.data("'.$registration.'"', $alpine);
+        }
+        $this->assertStringContainsString('Alpine.data("messageStream"', $messageStream);
+    }
+
     public function test_default_and_rollback_module_graphs_are_transitively_closed(): void
     {
         foreach ([true, false] as $jsonStream) {

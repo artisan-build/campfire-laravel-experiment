@@ -3,11 +3,15 @@
 namespace App\Models;
 
 use App\Support\RailsCrypto;
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-final class User extends Record
+final class User extends Record implements AuthenticatableContract
 {
+    use Authenticatable;
+
     protected $hidden = ['password_digest', 'bot_token'];
 
     public function rooms()
@@ -20,24 +24,19 @@ final class User extends Record
         return $this->hasMany(Membership::class);
     }
 
-    /**
-     * Laravel's presence-channel response asks the user model for its identifier. Campfire has its
-     * own session table rather than an auth guard, so this is the only piece of the Authenticatable
-     * contract it needs.
-     */
-    public function getAuthIdentifier(): int
+    public function getAuthPasswordName(): string
     {
-        return $this->id;
+        return 'password_digest';
+    }
+
+    public function getRememberTokenName(): string
+    {
+        return '';
     }
 
     public function scopeActive($q)
     {
         return $q->where('status', 0);
-    }
-
-    public function canAdminister($record = null): bool
-    {
-        return $this->role === 1 || ($record && $record->creator_id === $this->id);
     }
 
     public function avatarToken(): string

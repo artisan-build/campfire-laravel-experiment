@@ -15,6 +15,7 @@
 <meta name="vapid-public-key" content="{{ app(\App\Support\Vapid::class)->publicKey() }}">@unless(config('campfire.json_message_stream'))<meta name="turbo-prefetch" content="true">@endunless
 <link rel="manifest" href="/webmanifest.json"><link rel="icon" href="/account/logo" type="image/png"><link rel="apple-touch-icon" href="/account/logo">
 {!! $assets->head() !!}
+@livewireStyles
 @yield('head')
 </head>
 <body class="flex h-dvh flex-col overflow-hidden {{ $bodyClass ?? '' }}" @unless(($messageStream ?? false) && config('campfire.json_message_stream')) data-controller="local-time" @endunless x-data="appShell" @campfire:lightbox.window="openLightboxUrl($event)" data-testid="app-shell">
@@ -54,5 +55,6 @@
     </div>
 </dialog>
 <a href="https://once.com" class="fixed bottom-3 left-3 hidden opacity-40 transition hover:opacity-100 lg:block" target="_blank" rel="noreferrer" aria-label="Once software from 37signals home page"><img src="{{ $assets->path('campfire-icon.png') }}" alt="" width="34" height="29"></a>
+@livewireScripts(['defer' => true])
 </body>
 </html>

@@ -12,7 +12,7 @@ use Illuminate\Session\TokenMismatchException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(web: __DIR__.'/../routes/web.php', commands: __DIR__.'/../routes/console.php')
-    // /broadcasting/auth runs behind Campfire's own session cookie, not a Laravel auth guard.
+    // The Campfire middleware preserves the legacy cookie checks while populating Laravel's guard.
     ->withBroadcasting(__DIR__.'/../routes/channels.php', ['middleware' => ['web', 'campfire.auth']])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['session_token', '_campfire_session']);
