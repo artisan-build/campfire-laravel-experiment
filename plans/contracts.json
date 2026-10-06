@@ -1,7 +1,7 @@
 {
   "reference_revision": "659f95748a115a360a37db9bf80a5361a560e14f",
   "runtime": "Laravel 13 / PHP 8.4",
-  "ui_bar": "Laravel-native Alpine message stream and Livewire settings/sidebar active; message/forms browser verified, sidebar live verification pending",
+  "ui_bar": "Laravel-native Alpine message stream and Livewire settings/sidebar active; branch-head browser verification complete",
   "contracts": {
     "schema": {
       "status": "pending"
@@ -36,8 +36,8 @@
       "status": "pending"
     },
     "sidebar": {
-      "status": "partially_verified",
-      "evidence": "Focused Livewire and feature tests verify authenticated membership filtering and ordering, exact server-derived rooms/unreads/reads listener keys, authoritative rerenders, JSON-only sidebar.changed broadcasts, profile/direct participant refreshes, and removal of sidebar Turbo/Stimulus ownership. A committed two-user/two-tab Chromium harness covers create, unread badge, and cross-tab read clearing but has not yet been run by the coordinator."
+      "status": "verified",
+      "evidence": "Focused Livewire and feature tests verify authenticated membership filtering and ordering, exact server-derived rooms/unreads/reads listener keys, authoritative rerenders, JSON-only sidebar.changed broadcasts, profile/direct participant refreshes, and removal of sidebar Turbo/Stimulus ownership. The coordinator's branch-head two-user/two-tab Chromium run on PostgreSQL passed room create, unread/app-badge delivery and cross-tab read clearing without navigation."
     },
     "search": {
       "status": "verified",
@@ -68,7 +68,7 @@
     },
     "websockets": {
       "status": "partially_verified",
-      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room and Livewire sidebar subscriptions, per-user authorization and payload confidentiality are focused-test verified; the PR7 managed-Reverb two-tab sidebar run and sustained multi-tab behavior remain pending."
+      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room and Livewire sidebar subscriptions, per-user authorization and payload confidentiality are focused-test verified. PR7's branch-head two-tab sidebar run passed through a local Pusher-compatible relay; managed-Reverb production verification and sustained multi-tab behavior remain pending."
     },
     "presence": {
       "status": "partially_verified",
@@ -101,7 +101,7 @@
     },
     "browser": {
       "status": "verified",
-      "evidence": "The PR5 two-context JSON/Alpine harness passed branch-head and exact managed-Reverb production verification. The PR6 fresh-PostgreSQL browser matrix passed all six persisted Livewire/Alpine checks with zero console problems; focused follow-up verified direct-room create/deduplication and closed-to-open persistence. The PR7 sidebar harness is committed but not yet run."
+      "evidence": "The PR5 two-context JSON/Alpine harness passed branch-head and exact managed-Reverb production verification. The PR6 fresh-PostgreSQL browser matrix passed all six persisted Livewire/Alpine checks with zero console problems; focused follow-up verified direct-room create/deduplication and closed-to-open persistence. The PR7 branch-head PostgreSQL sidebar harness passed all six checks for two-user/two-tab create, unread/app-badge and read clearing without navigation; its exact managed-Reverb production rerun remains the merge-time rung."
     },
     "benchmarks": {
       "status": "verified",
