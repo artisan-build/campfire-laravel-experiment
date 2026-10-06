@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url)
 const { chromium } = require(require.resolve("playwright", { paths: [ process.cwd() ] }))
 const baseUrl = (process.env.PR8_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "")
 const outputPath = resolve(process.env.PR8_OUTPUT || "tmp/pr8-livewire-routes/result.json")
-const required = [ "PR8_ADMIN_EMAIL", "PR8_ADMIN_PASSWORD", "PR8_JOIN_CODE" ]
+const required = [ "PR8_ADMIN_EMAIL", "PR8_ADMIN_PASSWORD", "PR8_JOIN_CODE", "PR8_CANDIDATE", "PR8_DATABASE_STAMP", "PR8_QUEUE_STAMP" ]
 for (const name of required) if (!process.env[name]) throw new Error(`Missing ${name}`)
 
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -103,6 +103,17 @@ const transferContext = await chromium.launchPersistentContext(resolve(profileRo
 const admin = adminContext.pages()[0] || await adminContext.newPage()
 const member = memberContext.pages()[0] || await memberContext.newPage()
 const transfer = transferContext.pages()[0] || await transferContext.newPage()
+const provenance = {
+  candidate: process.env.PR8_CANDIDATE,
+  base_url: baseUrl,
+  database: process.env.PR8_DATABASE_STAMP,
+  queue: process.env.PR8_QUEUE_STAMP,
+  browser_executable: launchOptions.executablePath || "playwright-default",
+  browser_user_agent: await admin.evaluate(() => navigator.userAgent),
+  headless: launchOptions.headless,
+  context_model: "persistent",
+  node: process.version,
+}
 for (const [ page, label ] of [[admin, "admin"], [member, "member"], [transfer, "transfer"]]) watchConsole(page, label)
 admin.on("dialog", dialog => dialog.accept())
 
@@ -272,10 +283,10 @@ try {
 
   if (consoleProblems.length) throw new Error(`Console problems: ${JSON.stringify(consoleProblems)}`)
   mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, JSON.stringify({ ok: true, run_id: runId, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems }, null, 2))
+  writeFileSync(outputPath, JSON.stringify({ ok: true, run_id: runId, provenance, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems }, null, 2))
 } catch (error) {
   mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, JSON.stringify({ ok: false, run_id: runId, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems, error: error.message }, null, 2))
+  writeFileSync(outputPath, JSON.stringify({ ok: false, run_id: runId, provenance, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems, error: error.message }, null, 2))
   process.exitCode = 1
 } finally {
   await Promise.all([ adminContext.close(), memberContext.close(), transferContext.close() ])

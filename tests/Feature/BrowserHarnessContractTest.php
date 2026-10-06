@@ -15,6 +15,12 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('require.resolve("playwright"', $source);
         $this->assertStringContainsString('process.env.PR8_HEADLESS !== "false"', $source);
         $this->assertStringContainsString('process.env.PR8_PROFILE_ROOT', $source);
+        $this->assertStringContainsString('process.env.PR8_CANDIDATE', $source);
+        $this->assertStringContainsString('process.env.PR8_DATABASE_STAMP', $source);
+        $this->assertStringContainsString('process.env.PR8_QUEUE_STAMP', $source);
+        $this->assertStringContainsString('browser_user_agent: await admin.evaluate', $source);
+        $this->assertStringContainsString('context_model: "persistent"', $source);
+        $this->assertSame(2, substr_count($source, 'run_id: runId, provenance, states'));
         $this->assertSame(3, substr_count($source, 'chromium.launchPersistentContext('));
         $this->assertStringContainsString('const deadline = Date.now() + 30_000', $source);
         $this->assertStringContainsString('getByTestId', $source);
