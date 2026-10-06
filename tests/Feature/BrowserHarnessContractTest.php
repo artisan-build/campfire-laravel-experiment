@@ -36,6 +36,13 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('const messageId = await message(page, oldText).getAttribute("data-message-id")', $source);
         $this->assertStringContainsString('const row = messageById(page, messageId)', $source);
         $this->assertStringContainsString('await row.filter({ hasText: newText }).waitFor()', $source);
+        $this->assertStringContainsString('row.isConnected && Number(row.dataset.messageId) > 0', $source);
+        $this->assertStringContainsString('document.activeElement === button', $source);
+        $this->assertStringContainsString('await messageById(page, messageId).waitFor({ state: "detached" })', $source);
+        $this->assertStringContainsString('} finally {', $source);
+        $this->assertStringContainsString('await page.context().setOffline(false)', $source);
+        $this->assertStringContainsString('const content = boost.locator(\'[data-stream-action="reveal-boost"]\')', $source);
+        $this->assertStringContainsString('await removeBoost.waitFor({ state: "visible" })', $source);
         $this->assertStringNotContainsString('const row = message(page, oldText)', $source);
         $this->assertStringNotContainsString('row.locator("lexxy-editor").press("Escape")', $source);
         $this->assertStringNotContainsString('const editor = row.locator("lexxy-editor")', $source);
@@ -81,6 +88,7 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('require.resolve("playwright"', $source);
         $this->assertStringContainsString('process.env.PR5_BROWSER_EXECUTABLE || undefined', $source);
         $this->assertStringContainsString('import "/assets/lexxy-a21f41d4.js"', $source);
+        $this->assertStringContainsString('/assets/boosts-da4032a8.css', $source);
         $this->assertStringContainsString('await stream.startEdit', $source);
         $this->assertStringContainsString('await editRequestStarted', $source);
         $this->assertStringContainsString('stream.unindexMessage(original)', $source);
@@ -93,5 +101,12 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('waitFor({ state: "detached", timeout: 7_000 })', $source);
         $this->assertStringContainsString('Exhausted edge requested', $source);
         $this->assertStringContainsString('Changed edge did not permit another pagination request', $source);
+        $this->assertStringContainsString('Owner boost content is not keyboard-focusable', $source);
+        $this->assertStringContainsString('Owner boost content lost its accessible description', $source);
+        $this->assertStringContainsString('Click did not reveal boost removal', $source);
+        $this->assertStringContainsString('Second click did not hide boost removal', $source);
+        $this->assertStringContainsString('Enter did not reveal boost removal', $source);
+        $this->assertStringContainsString('Boost removal did not receive focus', $source);
+        $this->assertStringContainsString('remoteBoost.waitFor({ state: "detached" })', $source);
     }
 }

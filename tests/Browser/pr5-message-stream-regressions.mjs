@@ -15,6 +15,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 
 const fixture = `<!doctype html>
 <html><head><meta name="csrf-token" content="test-token">
+<link rel="stylesheet" href="/assets/boosts-da4032a8.css">
 <script type="importmap">{"imports":{"alpinejs":"/assets/alpine.esm-f00594ce.js","campfire/echo/config":"/stub-echo.js"}}</script>
 <script>
 globalThis.IntersectionObserver = class { observe() {} disconnect() {} }
@@ -43,10 +44,12 @@ globalThis.fixtureReady = true
 </script></head><body>
 <main x-data="messageStream({ roomId: 1, roomName: 'Room', roomType: 'Room', userId: Number(new URLSearchParams(location.search).get('user')), userName: 'Fixture User', userAvatarUrl: '', isAdmin: false })">
   <template x-ref="messageTemplate"><article data-message-id=""></article></template>
-  <div x-ref="messages">
+  <div x-ref="messages" @click="handleMessageAction($event)" @keydown.enter="handleBoostReveal($event)">
     <article data-message-id="10" data-client-message-id="message-10" data-user-id="2" data-message-timestamp="1700000000000" data-message-updated-at="1700000000000" data-message-url="/rooms/1/messages/10" data-mention-ids="">
       <button id="edit-trigger" type="button" data-stream-action="edit">Edit</button>
+      <button id="boost-trigger" type="button" data-stream-action="boost" data-boost-content="ship">Boost</button>
       <div data-stream-part="presentation"><p>Rendered body</p></div>
+      <div data-stream-part="boosts"></div>
       <time data-stream-time="date"></time><time data-stream-time="time"></time>
     </article>
   </div>
@@ -76,7 +79,7 @@ const server = createServer((request, response) => {
   }
   if (url.pathname.startsWith("/assets/")) {
     try {
-      response.setHeader("Content-Type", "text/javascript")
+      response.setHeader("Content-Type", url.pathname.endsWith(".css") ? "text/css" : "text/javascript")
       response.end(readFileSync(resolve(root, "public", url.pathname.slice(1))))
     } catch {
       response.statusCode = 404
@@ -156,6 +159,43 @@ try {
   })
   await keyboardEditor.locator('[contenteditable="true"]').press("Control+Enter")
   if (await userA.evaluate(() => globalThis.saveClicks) !== 1) throw new Error("Ctrl+Enter did not activate edit save")
+
+  const createdBoost = { id: 20, content: "ship", booster: { id: 1, name: "Fixture User", avatar_url: "" } }
+  await userA.route("**/messages/10/boosts**", async (route) => {
+    const event = route.request().method() === "DELETE" ? ".boost.removed" : ".boost.added"
+    const payload = { message_id: 10, boost: createdBoost }
+    await Promise.all([
+      userA.evaluate(({ event, payload }) => globalThis.__emit("rooms.1", event, payload), { event, payload }),
+      userB.evaluate(({ event, payload }) => globalThis.__emit("rooms.1", event, payload), { event, payload }),
+    ])
+    if (event === ".boost.removed") await route.fulfill({ status: 204 })
+    else await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(payload) })
+  })
+  await userA.locator("#boost-trigger").click()
+  const localBoost = userA.locator('[data-boost-id="20"]')
+  const remoteBoost = userB.locator('[data-boost-id="20"]')
+  await Promise.all([localBoost.waitFor(), remoteBoost.waitFor()])
+  if (await userA.locator('[data-boost-id="20"]').count() !== 1) throw new Error("Boost add did not reconcile to one local row")
+  const boostContent = localBoost.locator('[data-stream-action="reveal-boost"]')
+  if (await boostContent.getAttribute("tabindex") !== "0") throw new Error("Owner boost content is not keyboard-focusable")
+  if (await boostContent.getAttribute("aria-describedby") !== "delete_boost_accessible_label") throw new Error("Owner boost content lost its accessible description")
+  const removeBoost = localBoost.locator('[data-stream-action="remove-boost"]')
+  if (await removeBoost.isVisible()) throw new Error("Boost removal was visible before reveal")
+  await boostContent.click()
+  if (!await localBoost.evaluate((boost) => boost.classList.contains("expanded"))) throw new Error("Click did not reveal boost removal")
+  if (!await removeBoost.evaluate((button) => button === document.activeElement)) throw new Error("Click reveal did not focus boost removal")
+  await boostContent.click()
+  if (await removeBoost.isVisible()) throw new Error("Second click did not hide boost removal")
+  await boostContent.focus()
+  await boostContent.press("Enter")
+  if (!await localBoost.evaluate((boost) => boost.classList.contains("expanded"))) throw new Error("Enter did not reveal boost removal")
+  await removeBoost.waitFor({ state: "visible" })
+  if (!await removeBoost.evaluate((button) => button === document.activeElement)) throw new Error("Boost removal did not receive focus")
+  await removeBoost.click()
+  await Promise.all([
+    localBoost.waitFor({ state: "detached" }),
+    remoteBoost.waitFor({ state: "detached" }),
+  ])
 
   await userB.route("**/rooms/1/typing", async (route) => {
     const { action } = route.request().postDataJSON()

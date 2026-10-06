@@ -276,6 +276,11 @@ Alpine.data("messageStream", (options) => ({
     element.append(avatar, content)
 
     if (Number(boost.booster.id) === Number(options.userId)) {
+      content.setAttribute("role", "button")
+      content.tabIndex = 0
+      content.setAttribute("aria-describedby", "delete_boost_accessible_label")
+      content.dataset.streamAction = "reveal-boost"
+
       const remove = document.createElement("button")
       remove.type = "button"
       remove.className = "btn btn--negative boost__delete"
@@ -328,6 +333,7 @@ Alpine.data("messageStream", (options) => ({
 
     event.preventDefault()
     const name = action.dataset.streamAction
+    if (name === "reveal-boost") this.revealBoost(action)
     if (name === "boost") await this.createBoost(message, action.dataset.boostContent)
     if (name === "custom-boost") {
       const content = prompt("Boost")
@@ -339,6 +345,22 @@ Alpine.data("messageStream", (options) => ({
     if (name === "copy") await navigator.clipboard?.writeText(message.dataset.messageUrl)
     if (name === "reply") this.replyTo(message)
     if (name === "lightbox") this.$dispatch("campfire:lightbox", { url: action.href, download: action.dataset.downloadUrl })
+  },
+
+  revealBoost(content) {
+    const boost = content.closest("[data-boost-id]")
+    if (!boost || Number(boost.dataset.boosterId) !== Number(options.userId)) return
+
+    boost.classList.toggle("expanded")
+    boost.querySelector('[data-stream-action="remove-boost"]')?.focus()
+  },
+
+  handleBoostReveal(event) {
+    const content = event.target.closest('[data-stream-action="reveal-boost"]')
+    if (!content) return
+
+    event.preventDefault()
+    this.revealBoost(content)
   },
 
   async createBoost(message, content) {

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Attachment;
 use App\Models\Blob;
+use App\Models\Boost;
 use App\Models\Message;
 use App\Models\User;
 use App\Support\MessageWriter;
@@ -19,6 +20,7 @@ final class JsonMessageStreamTest extends TestCase
             'body' => '<p>Initial history from the server</p>',
             'client_message_id' => 'server-history-row',
         ]);
+        Boost::create(['message_id' => $message->id, 'booster_id' => $author->id, 'content' => 'ship']);
         $this->auth($author);
 
         $response = $this->get('/rooms/'.$room->id)->assertOk()
@@ -28,6 +30,9 @@ final class JsonMessageStreamTest extends TestCase
             ->assertSee('data-testid="room-json-composer"', false)
             ->assertSee('id="message_server-history-row"', false)
             ->assertSee('data-message-id="'.$message->id.'"', false)
+            ->assertSee('@keydown.enter="handleBoostReveal($event)"', false)
+            ->assertSee('aria-describedby="delete_boost_accessible_label"', false)
+            ->assertSee('data-stream-action="reveal-boost"', false)
             ->assertSee('Initial history from the server');
 
         $html = $response->getContent();
@@ -148,6 +153,13 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertStringContainsString('this.lastTypingSent = 0', $source);
         $this->assertStringContainsString('this.exhaustedPageAnchors.get(direction) === anchor', $source);
         $this->assertStringContainsString('this.exhaustedPageAnchors.set(direction, anchor)', $source);
+        $this->assertStringContainsString('content.tabIndex = 0', $source);
+        $this->assertStringContainsString('content.setAttribute("aria-describedby", "delete_boost_accessible_label")', $source);
+        $this->assertStringContainsString('content.dataset.streamAction = "reveal-boost"', $source);
+        $this->assertStringContainsString('Number(boost.dataset.boosterId) !== Number(options.userId)', $source);
+        $this->assertStringContainsString('boost.classList.toggle("expanded")', $source);
+        $this->assertStringContainsString('boost.querySelector(\'[data-stream-action="remove-boost"]\')?.focus()', $source);
+        $this->assertStringContainsString('handleBoostReveal(event)', $source);
     }
 
     public function test_json_mutations_return_explicit_success_and_validation_statuses(): void

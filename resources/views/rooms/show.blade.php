@@ -31,7 +31,7 @@
             </div><div dir="auto" data-stream-part="presentation"></div><div class="boosts flex flex-wrap align-center gap full-width"><div class="flex-inline flex-wrap gap" data-stream-part="boosts"></div><button type="button" class="btn boost__action txt-small" data-stream-action="custom-boost">Add a boost</button></div></div></div>
         </article>
     </template>
-    <div id="messages_room_{{ $room->id }}" class="messages" x-ref="messages" @click="handleMessageAction($event); handleEditAction($event)" data-testid="room-message-history">@foreach($messages as $message)@include('messages.stream_message')@endforeach</div>
+    <div id="messages_room_{{ $room->id }}" class="messages" x-ref="messages" @click="handleMessageAction($event); handleEditAction($event)" @keydown.enter="handleBoostReveal($event)" data-testid="room-message-history">@foreach($messages as $message)@include('messages.stream_message')@endforeach</div>
     <button type="button" class="message-area__return-to-latest btn" hidden x-ref="latest" @click="returnToLatest()"><img src="{{ $assets->path('arrow-down.svg') }}" width="20" height="20" aria-hidden="true"><span class="for-screen-reader">Jump to newest message</span></button>
     <p class="fixed bottom-24 left-1/2 z-40 -translate-x-1/2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow" x-cloak x-show="streamError" x-text="streamError" role="alert" data-testid="room-stream-error"></p>
 </div>

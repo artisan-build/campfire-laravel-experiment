@@ -98,7 +98,12 @@ async function post(page, text, keyboard = false) {
   await setEditor(page, `<p>${text}</p>`)
   if (keyboard) await lexxyEditable(page, "#message_body").press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
   else await page.locator('[data-testid="room-json-composer"] button[type="submit"]').click()
-  await page.locator("[data-message-id]", { hasText: text }).waitFor()
+  const optimistic = message(page, text)
+  await optimistic.waitFor()
+  const optimisticHandle = await optimistic.elementHandle()
+  if (!optimisticHandle) throw new Error("Optimistic row disappeared before reconciliation")
+  await page.waitForFunction((row) => row.isConnected && Number(row.dataset.messageId) > 0, optimisticHandle, { timeout: 15_000 })
+  return messageById(page, await optimisticHandle.getAttribute("data-message-id"))
 }
 
 function message(page, text) {
@@ -123,21 +128,30 @@ async function edit(page, oldText, newText, keyboard = true) {
   if (keyboard) await lexxyEditable(row).press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
   else await row.locator('[data-stream-action="save-edit"]').click()
   await row.filter({ hasText: newText }).waitFor()
+  const editAction = row.locator('[data-stream-action="edit"]')
+  const editActionHandle = await editAction.elementHandle()
+  if (!editActionHandle) throw new Error("Stable row lost its Edit action")
+  await page.waitForFunction((button) => document.activeElement === button, editActionHandle, { timeout: 10_000 })
 }
 
 async function remove(page, text) {
-  const row = message(page, text)
+  const messageId = await message(page, text).getAttribute("data-message-id")
+  if (!messageId || messageId === "0") throw new Error(`Cannot remove unstable message id ${messageId || "missing"}`)
+  const row = messageById(page, messageId)
   await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
   page.once("dialog", (dialog) => dialog.accept())
   await row.locator('[data-stream-action="delete"]').click()
-  await row.waitFor({ state: "detached" })
+  await messageById(page, messageId).waitFor({ state: "detached" })
 }
 
 async function reconnect(page, mutate) {
   await page.context().setOffline(true)
-  await mutate()
-  await page.context().setOffline(false)
-  await page.evaluate(() => window.dispatchEvent(new Event("online")))
+  try {
+    await mutate()
+  } finally {
+    await page.context().setOffline(false)
+    await page.evaluate(() => window.dispatchEvent(new Event("online")))
+  }
 }
 
 const browser = await chromium.launch({ headless: process.env.PR5_HEADED !== "1" })
@@ -215,13 +229,26 @@ try {
   })
 
   await check("boost add remove and failed rollback", async () => {
-    const row = message(userA, edited)
+    const messageId = await message(userA, edited).getAttribute("data-message-id")
+    if (!messageId || messageId === "0") throw new Error(`Cannot boost unstable message id ${messageId || "missing"}`)
+    const row = messageById(userA, messageId)
     await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
     await row.locator('[data-stream-action="boost"]').first().click()
-    await row.locator("[data-boost-id]").waitFor()
-    await message(userB, edited).locator("[data-boost-id]").waitFor()
-    await row.locator('[data-stream-action="remove-boost"]').click()
-    await message(userB, edited).locator("[data-boost-id]").waitFor({ state: "detached" })
+    const boost = row.locator('[data-boost-id]:not([data-boost-id^="pending-"])').last()
+    await boost.waitFor()
+    const boostId = await boost.getAttribute("data-boost-id")
+    if (!boostId) throw new Error("Created boost has no stable id")
+    const remoteBoost = messageById(userB, messageId).locator(`[data-boost-id="${boostId}"]`)
+    await remoteBoost.waitFor()
+    const content = boost.locator('[data-stream-action="reveal-boost"]')
+    await content.click()
+    if (!await boost.evaluate((element) => element.classList.contains("expanded"))) throw new Error("Owner boost did not expand")
+    const removeBoost = boost.locator('[data-stream-action="remove-boost"]')
+    await removeBoost.waitFor({ state: "visible" })
+    if (!await removeBoost.evaluate((button) => button === document.activeElement)) throw new Error("Boost removal did not receive focus")
+    await removeBoost.click()
+    await remoteBoost.waitFor({ state: "detached" })
+    await row.locator(`[data-boost-id="${boostId}"]`).waitFor({ state: "detached" })
 
     await userA.route("**/messages/*/boosts", async (route) => {
       await userA.unroute("**/messages/*/boosts")
