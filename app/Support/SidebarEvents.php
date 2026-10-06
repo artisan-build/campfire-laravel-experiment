@@ -8,15 +8,6 @@ use Illuminate\Support\Facades\DB;
 
 final class SidebarEvents
 {
-    public function globalRemove(int $roomId): void
-    {
-        if (config('campfire.json_message_stream')) {
-            return;
-        }
-
-        DB::afterCommit(fn () => app(Broadcasting::class)->roomList('<turbo-stream action="remove" target="list_room_'.$roomId.'"></turbo-stream>'));
-    }
-
     public function refresh(array $userIds): void
     {
         DB::afterCommit(function () use ($userIds) {
