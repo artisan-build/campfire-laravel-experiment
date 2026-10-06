@@ -47,6 +47,26 @@ async function waitForLivewireResponse(operation, endpoint = "update") {
   if (!response.ok()) throw new Error(`Livewire ${endpoint} failed (${response.status()})`)
 }
 
+async function uploadFileAndWait(input, file) {
+  const handle = await input.elementHandle()
+  if (!handle) throw new Error("Livewire file input is missing")
+
+  try {
+    await handle.evaluate((element) => {
+      element.__pr6UploadState = "pending"
+      element.addEventListener("livewire-upload-finish", () => { element.__pr6UploadState = "finished" }, { once: true })
+      element.addEventListener("livewire-upload-error", () => { element.__pr6UploadState = "failed" }, { once: true })
+    })
+    await input.setInputFiles(file)
+    await page.waitForFunction((element) => element.__pr6UploadState !== "pending", handle)
+    if (await handle.evaluate((element) => element.__pr6UploadState) !== "finished") {
+      throw new Error("Livewire upload failed")
+    }
+  } finally {
+    await handle.dispose()
+  }
+}
+
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PR6_BROWSER_EXECUTABLE || undefined })
 const context = await browser.newContext()
 await context.addInitScript(() => {
@@ -105,12 +125,7 @@ try {
 
   await check("Livewire profile name and avatar persist", async () => {
     await page.goto(`${baseUrl}/users/me/profile`)
-    const uploadFinished = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/update"))
-    await waitForLivewireResponse(
-      () => page.locator('[data-testid="profile-form"] input[type="file"]').setInputFiles(avatarPath),
-      "upload-file",
-    )
-    if (!(await uploadFinished).ok()) throw new Error("Livewire upload registration failed")
+    await uploadFileAndWait(page.locator('[data-testid="profile-form"] input[type="file"]'), avatarPath)
     await page.locator('[data-testid="profile-form"] input[wire\\:model="name"]').fill(`${profileName} Updated`)
     await waitForLivewireResponse(() => page.getByRole("button", { name: "Save changes" }).click())
     const validationErrors = await page.locator('[data-testid="profile-form"] .text-red-600').allTextContents()
