@@ -75,7 +75,7 @@ async function login(page, email, password) {
   const form = page.getByTestId("sign-in-form")
   await form.locator('input[type="email"]').fill(email)
   await form.locator('input[type="password"]').fill(password)
-  await Promise.all([ page.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname)), form.getByRole("button", { name: "Sign in" }).click() ])
+  await Promise.all([ page.waitForURL(url => url.pathname === "/" || url.pathname === "/account/bots" || /^\/rooms\/\d+$/.test(url.pathname)), form.getByRole("button", { name: "Sign in" }).click() ])
 }
 
 async function waitForNotification(page) {

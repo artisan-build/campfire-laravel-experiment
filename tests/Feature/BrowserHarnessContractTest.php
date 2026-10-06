@@ -35,6 +35,7 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('PushSubscription.prototype.unsubscribe = async function', $source);
         $this->assertStringContainsString('pr8-unsubscribe-rejection-executed', $source);
         $this->assertStringContainsString('Rejected unsubscribe preserved the server session', $source);
+        $this->assertStringContainsString('url.pathname === "/account/bots"', $source);
         $this->assertStringContainsString('bot delete', $source);
         $this->assertStringContainsString('Join-code substitution did not fail loudly', $source);
         $this->assertStringContainsString('Transfer-id substitution did not fail loudly', $source);
