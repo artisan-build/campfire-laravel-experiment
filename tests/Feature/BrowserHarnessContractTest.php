@@ -99,6 +99,17 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('lexxy-editor[connected]', $source);
         $this->assertStringContainsString('Connected edit editor did not receive the canonical body', $source);
         $this->assertStringContainsString('Ctrl+Enter did not activate edit save', $source);
+        $this->assertStringContainsString('Race fixture did not start from the indexed optimistic row', $source);
+        $this->assertStringContainsString('optimistic.dataset.messageId = "0"', $source);
+        $this->assertStringContainsString('Optimistic reconciliation detached the active Lexxy editor', $source);
+        $this->assertStringContainsString('Optimistic reconciliation destroyed the edit draft', $source);
+        $this->assertStringContainsString('Boost updates disturbed the active Lexxy editor', $source);
+        $this->assertStringContainsString('Reconnect convergence detached the active Lexxy editor', $source);
+        $this->assertStringContainsString('Delete update detached the active Lexxy editor before edit closed', $source);
+        $this->assertStringContainsString('globalThis.raceEditor.isConnected', $source);
+        $this->assertStringContainsString('globalThis.raceEditable.isContentEditable', $source);
+        $this->assertStringContainsString('await stream.receiveMessage(message)', $source);
+        $this->assertStringContainsString('await stream.replaceCurrentWindow([message])', $source);
         $this->assertStringContainsString('.typing-indicator--active', $source);
         $this->assertStringContainsString('waitFor({ state: "detached", timeout: 7_000 })', $source);
         $this->assertStringContainsString('Exhausted edge requested', $source);

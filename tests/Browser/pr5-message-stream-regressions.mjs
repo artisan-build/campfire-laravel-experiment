@@ -13,6 +13,20 @@ const playwrightModule = await import(pathToFileURL(playwrightPath))
 const { chromium } = playwrightModule.default || playwrightModule
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 
+const messagePayload = ({ body = "Server body", editableBody = "<p>Canonical edit body</p>", boosts = [], updatedAt = "2023-11-14T22:13:21.000Z" } = {}) => ({
+  id: 10,
+  client_message_id: "message-10",
+  created_at: "2023-11-14T22:13:20.000Z",
+  updated_at: updatedAt,
+  body: { html: `<p>${body}</p>`, plain_text: body, editable_html: editableBody, truncated: false },
+  creator: { id: 2, name: "Fixture User", avatar_url: "" },
+  room: { id: 1, name: "Room", type: "Room" },
+  url: "/rooms/1/messages/10",
+  attachment: null,
+  boosts,
+  mentions: [],
+})
+
 const fixture = `<!doctype html>
 <html><head><meta name="csrf-token" content="test-token">
 <link rel="stylesheet" href="/assets/boosts-da4032a8.css">
@@ -43,9 +57,20 @@ Alpine.start()
 globalThis.fixtureReady = true
 </script></head><body>
 <main x-data="messageStream({ roomId: 1, roomName: 'Room', roomType: 'Room', userId: Number(new URLSearchParams(location.search).get('user')), userName: 'Fixture User', userAvatarUrl: '', isAdmin: false })">
-  <template x-ref="messageTemplate"><article data-message-id=""></article></template>
-  <div x-ref="messages" @click="handleMessageAction($event)" @keydown.enter="handleBoostReveal($event)">
+  <template x-ref="messageTemplate"><article data-message-id="">
+    <a data-stream-part="permalink"></a>
+    <a data-stream-part="author-link"><img data-stream-part="avatar"></a>
+    <span data-stream-part="author"></span><span data-stream-part="room"></span>
+    <button type="button" data-stream-action="edit" data-owner-action>Edit</button>
+    <button type="button" data-stream-action="boost" data-boost-content="ship">Boost</button>
+    <div data-stream-part="presentation"></div><div data-stream-part="boosts"></div>
+    <time data-stream-time="date"></time><time data-stream-time="time"></time>
+  </article></template>
+  <div x-ref="messages" @click="handleMessageAction($event); handleEditAction($event)" @keydown.enter="handleBoostReveal($event)">
     <article data-message-id="10" data-client-message-id="message-10" data-user-id="2" data-message-timestamp="1700000000000" data-message-updated-at="1700000000000" data-message-url="/rooms/1/messages/10" data-mention-ids="">
+      <a data-stream-part="permalink"></a>
+      <a data-stream-part="author-link"><img data-stream-part="avatar"></a>
+      <span data-stream-part="author">Fixture User</span><span data-stream-part="room">Room</span>
       <button id="edit-trigger" type="button" data-stream-action="edit">Edit</button>
       <button id="boost-trigger" type="button" data-stream-action="boost" data-boost-content="ship">Boost</button>
       <div data-stream-part="presentation"><p>Rendered body</p></div>
@@ -108,7 +133,17 @@ try {
   const editRequestStarted = new Promise((resolve) => { markEditRequestStarted = resolve })
   const editRequestReleased = new Promise((resolve) => { releaseEditRequest = resolve })
   let editRequests = 0
+  let editSaves = 0
   await userA.route("**/rooms/1/messages/10", async (route) => {
+    if (route.request().method() === "POST") {
+      editSaves++
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(messagePayload({ body: "Saved draft", editableBody: "<p>Saved draft</p>", updatedAt: "2023-11-14T22:13:24.000Z" })),
+      })
+      return
+    }
     editRequests++
     if (editRequests === 1) {
       markEditRequestStarted()
@@ -147,6 +182,18 @@ try {
   if (await userA.locator("[data-message-id] lexxy-editor").count()) throw new Error("Escape did not cancel editing")
   if (!await userA.locator("#edit-trigger").evaluate((button) => button === document.activeElement)) throw new Error("Escape did not restore edit focus")
 
+  await userA.evaluate(() => {
+    const stream = Alpine.$data(document.querySelector("main"))
+    const optimistic = document.querySelector("[data-message-id]")
+    stream.unindexMessage(optimistic)
+    optimistic.dataset.messageId = "0"
+    optimistic.dataset.messageUrl = ""
+    optimistic.dataset.messageEditableBody = "<p>Optimistic edit body</p>"
+    stream.indexMessage(optimistic)
+  })
+  if (await userA.locator('[data-message-id="0"][data-client-message-id="message-10"]').count() !== 1) {
+    throw new Error("Race fixture did not start from the indexed optimistic row")
+  }
   await userA.evaluate(async () => {
     const stream = Alpine.$data(document.querySelector("main"))
     await stream.startEdit(document.querySelector("[data-message-id]"))
@@ -157,8 +204,73 @@ try {
     globalThis.saveClicks = 0
     document.querySelector('[data-stream-action="save-edit"]').addEventListener("click", () => globalThis.saveClicks++)
   })
+  await keyboardEditor.evaluate((editor) => { editor.value = "<p>Unsaved race draft</p>" })
+  await userA.evaluate(async (message) => {
+    const stream = Alpine.$data(document.querySelector("main"))
+    globalThis.raceEditor = document.querySelector("[data-message-id] lexxy-editor")
+    globalThis.raceEditable = globalThis.raceEditor.querySelector('[contenteditable="true"]')
+    await stream.receiveMessage(message)
+  }, messagePayload({ body: "Reconciled server body", updatedAt: "2023-11-14T22:13:22.000Z" }))
+  const reconciliationState = await userA.evaluate(() => ({
+    sameEditor: document.querySelector("[data-message-id] lexxy-editor") === globalThis.raceEditor,
+    sameEditable: globalThis.raceEditor.querySelector('[contenteditable="true"]') === globalThis.raceEditable,
+    editorConnected: globalThis.raceEditor.isConnected,
+    editable: globalThis.raceEditable.isContentEditable,
+    draft: globalThis.raceEditor.value,
+  }))
+  if (!reconciliationState.sameEditor || !reconciliationState.sameEditable || !reconciliationState.editorConnected || !reconciliationState.editable) {
+    throw new Error("Optimistic reconciliation detached the active Lexxy editor")
+  }
+  if (!reconciliationState.draft.includes("Unsaved race draft")) throw new Error("Optimistic reconciliation destroyed the edit draft")
+
+  await userA.evaluate((boost) => {
+    const stream = Alpine.$data(document.querySelector("main"))
+    stream.addBoost(10, boost)
+    stream.removeBoost(10, boost.id)
+  }, { id: 21, content: "safe", booster: { id: 2, name: "Fixture User", avatar_url: "" } })
+  if (!await keyboardEditor.evaluate((editor) => editor.isConnected && editor.value.includes("Unsaved race draft"))) {
+    throw new Error("Boost updates disturbed the active Lexxy editor")
+  }
   await keyboardEditor.locator('[contenteditable="true"]').press("Control+Enter")
   if (await userA.evaluate(() => globalThis.saveClicks) !== 1) throw new Error("Ctrl+Enter did not activate edit save")
+  await userA.locator('[data-message-id] lexxy-editor').waitFor({ state: "detached" })
+  await userA.locator('[data-message-id] [data-stream-part="presentation"]', { hasText: "Saved draft" }).waitFor()
+  if (editSaves !== 1) throw new Error(`Edit save issued ${editSaves} requests`)
+
+  await userA.evaluate(async () => {
+    await Alpine.$data(document.querySelector("main")).startEdit(document.querySelector("[data-message-id]"))
+  })
+  const convergenceEditor = userA.locator('[data-message-id] lexxy-editor[connected]')
+  await convergenceEditor.locator('[contenteditable="true"]').waitFor()
+  await convergenceEditor.evaluate((editor) => { editor.value = "<p>Reconnect draft</p>" })
+  await userA.evaluate(async (message) => {
+    const stream = Alpine.$data(document.querySelector("main"))
+    globalThis.convergenceEditor = document.querySelector("[data-message-id] lexxy-editor")
+    await stream.replaceCurrentWindow([message])
+  }, messagePayload({ body: "Reconnect server body", updatedAt: "2023-11-14T22:13:25.000Z" }))
+  if (!await userA.evaluate(() => globalThis.convergenceEditor.isConnected && globalThis.convergenceEditor.value.includes("Reconnect draft"))) {
+    throw new Error("Reconnect convergence detached the active Lexxy editor")
+  }
+  await userA.locator('[data-stream-action="cancel-edit"]').click()
+  await userA.locator('[data-message-id] [data-stream-part="presentation"]', { hasText: "Reconnect server body" }).waitFor()
+
+  await userA.evaluate(async () => {
+    await Alpine.$data(document.querySelector("main")).startEdit(document.querySelector("[data-message-id]"))
+  })
+  const deletingEditor = userA.locator('[data-message-id] lexxy-editor[connected]')
+  await deletingEditor.locator('[contenteditable="true"]').waitFor()
+  await userA.evaluate(() => {
+    const stream = Alpine.$data(document.querySelector("main"))
+    globalThis.deletingEditor = document.querySelector("[data-message-id] lexxy-editor")
+    stream.removeMessage({ id: 10, client_message_id: "message-10" })
+  })
+  if (!await userA.evaluate(() => globalThis.deletingEditor.isConnected && globalThis.deletingEditor.querySelector('[contenteditable="true"]')?.isContentEditable)) {
+    throw new Error("Delete update detached the active Lexxy editor before edit closed")
+  }
+  await userA.locator('[data-stream-action="cancel-edit"]').click()
+  await userA.locator('[data-message-id="10"]').waitFor({ state: "detached" })
+
+  await userA.evaluate((message) => Alpine.$data(document.querySelector("main")).upsertMessage(message), messagePayload())
 
   const createdBoost = { id: 20, content: "ship", booster: { id: 1, name: "Fixture User", avatar_url: "" } }
   await userA.route("**/messages/10/boosts**", async (route) => {
@@ -171,7 +283,7 @@ try {
     if (event === ".boost.removed") await route.fulfill({ status: 204 })
     else await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(payload) })
   })
-  await userA.locator("#boost-trigger").click()
+  await userA.locator('[data-stream-action="boost"]').click()
   const localBoost = userA.locator('[data-boost-id="20"]')
   const remoteBoost = userB.locator('[data-boost-id="20"]')
   await Promise.all([localBoost.waitFor(), remoteBoost.waitFor()])

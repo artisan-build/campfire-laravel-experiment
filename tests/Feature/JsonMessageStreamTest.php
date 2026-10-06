@@ -137,7 +137,8 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertStringContainsString("if (connected) {\n      this.recover()", $source);
         $this->assertStringContainsString('await this.replaceCurrentWindow(await this.authoritativeSnapshot())', $source);
         $this->assertStringContainsString('while (startedAt !== this.mutationVersion)', $source);
-        $this->assertStringContainsString('this.$refs.messages.replaceChildren(...optimistic)', $source);
+        $this->assertStringContainsString('!Number(message.dataset.messageId) || this.editing.has(message)', $source);
+        $this->assertStringNotContainsString('this.$refs.messages.replaceChildren(...optimistic)', $source);
         $this->assertLessThan(strpos($source, 'this.files = []'), strpos($source, 'await this.ensureLatest()'));
         $this->assertStringContainsString('message.body.editable_html', $source);
         $this->assertStringContainsString('event.key === "Escape"', $source);
