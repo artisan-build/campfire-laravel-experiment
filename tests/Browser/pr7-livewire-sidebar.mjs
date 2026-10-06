@@ -24,6 +24,7 @@ const messageText = `Sidebar unread ${suffix}`
 const results = []
 const states = []
 const consoleProblems = []
+const consoleAdvisories = []
 let failure = null
 
 mkdirSync(dirname(outputPath), { recursive: true })
@@ -92,7 +93,14 @@ const pageB1 = await contextB.newPage()
 const pageB2 = await contextB.newPage()
 for (const page of [ pageA, pageB1, pageB2 ]) {
   page.on("console", (message) => {
-    if ([ "warning", "error" ].includes(message.type())) consoleProblems.push(`${message.type()}: ${message.text()}`)
+    if (![ "warning", "error" ].includes(message.type())) return
+    const location = message.location().url || "unknown"
+    const detail = `${message.type()}: ${message.text()} [${location}]`
+    if (message.type() === "error" && message.text().includes("404 (Not Found)") && /\/rooms\/\d+\/messages\?before=0$/.test(location)) {
+      consoleAdvisories.push(detail)
+    } else {
+      consoleProblems.push(detail)
+    }
   })
   page.on("pageerror", (error) => consoleProblems.push(`pageerror: ${error.message}`))
 }
@@ -181,7 +189,7 @@ try {
   failure = error
 } finally {
   await browser.close()
-  writeFileSync(outputPath, JSON.stringify({ generated_at: new Date().toISOString(), results, states, console_problems: consoleProblems }, null, 2))
+  writeFileSync(outputPath, JSON.stringify({ generated_at: new Date().toISOString(), results, states, console_problems: consoleProblems, console_advisories: consoleAdvisories }, null, 2))
 }
 
 if (failure) throw failure

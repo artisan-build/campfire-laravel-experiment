@@ -25,6 +25,9 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('Other tab missed read clearing', $source);
         $this->assertStringContainsString('writeFileSync(outputPath', $source);
         $this->assertStringContainsString('states.push({ name, url: page.url(), room_id: roomId, link: state })', $source);
+        $this->assertStringContainsString('/\\/rooms\\/\\d+\\/messages\\?before=0$/', $source);
+        $this->assertStringContainsString('consoleProblems.push(detail)', $source);
+        $this->assertStringContainsString('console_advisories: consoleAdvisories', $source);
         $this->assertStringNotContainsString('setInterval', $source);
         $this->assertStringNotContainsString('page.reload()', $source);
 
