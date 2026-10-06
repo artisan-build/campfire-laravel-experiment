@@ -164,13 +164,15 @@ Alpine.data("messageStream", (options) => ({
 
     this.fillMessage(element, message)
     this.indexMessage(element)
-    this.insertInOrder(element)
+    if (!this.editing.has(element)) this.insertInOrder(element)
     this.trimMessages()
     this.formatMessages()
     this.observeEdges()
+    return element
   },
 
   fillMessage(element, message) {
+    const editState = this.editing.get(element)
     element.id = `message_${message.client_message_id}`
     element.dataset.messageId = message.id
     element.dataset.clientMessageId = message.client_message_id
@@ -197,7 +199,12 @@ Alpine.data("messageStream", (options) => ({
     element.querySelector("[data-stream-part=room]").textContent = message.room.name || "Direct message"
 
     const presentation = element.querySelector("[data-stream-part=presentation]")
-    presentation.replaceChildren(this.presentationFor(message))
+    if (editState) {
+      editState.pendingMessage = message
+      editState.pendingDelete = false
+    } else {
+      presentation.replaceChildren(this.presentationFor(message))
+    }
     this.renderBoosts(element, message.boosts)
 
     const canAdminister = options.isAdmin || Number(message.creator.id) === Number(options.userId)
@@ -304,6 +311,12 @@ Alpine.data("messageStream", (options) => ({
   removeMessage(message) {
     const element = this.messagesById.get(Number(message?.id)) || this.messagesByClientId.get(String(message?.client_message_id || ""))
     if (!element) return
+    const editState = this.editing.get(element)
+    if (editState) {
+      editState.pendingMessage = null
+      editState.pendingDelete = true
+      return
+    }
     this.unindexMessage(element)
     element.remove()
     this.formatMessages()
@@ -469,6 +482,11 @@ Alpine.data("messageStream", (options) => ({
     if (!state) return
     message.querySelector("[data-stream-part=presentation]").replaceWith(state.original)
     this.editing.delete(message)
+    if (state.pendingDelete) {
+      this.removeMessage({ id: message.dataset.messageId, client_message_id: message.dataset.clientMessageId })
+      return
+    }
+    if (state.pendingMessage) this.upsertMessage(state.pendingMessage)
     state.restoreFocus?.focus()
   },
 
@@ -581,7 +599,7 @@ Alpine.data("messageStream", (options) => ({
       client_message_id: clientId,
       created_at: now,
       updated_at: now,
-      body: { plain_text: text, html: "", truncated: false },
+      body: { plain_text: text, html: "", editable_html: body, truncated: false },
       creator: { id: options.userId, name: options.userName, avatar_url: options.userAvatarUrl, role: options.isAdmin ? "administrator" : "member" },
       room: { id: options.roomId, name: options.roomName, type: options.roomType },
       url: "",
@@ -716,17 +734,20 @@ Alpine.data("messageStream", (options) => ({
   async replaceCurrentWindow(messages) {
     const wasNearLatest = this.nearLatest()
     const distanceFromBottom = this.$refs.messages.scrollHeight - this.$refs.messages.scrollTop
-    const optimistic = Array.from(this.$refs.messages.children).filter((message) => !Number(message.dataset.messageId))
-    this.$refs.messages.replaceChildren(...optimistic)
+    const retained = Array.from(this.$refs.messages.children).filter((message) => !Number(message.dataset.messageId) || this.editing.has(message))
+    Array.from(this.$refs.messages.children).filter((message) => !retained.includes(message)).forEach((message) => message.remove())
     this.messagesById.clear()
     this.messagesByClientId.clear()
     this.lastUpdatedAt = 0
-    optimistic.forEach((message) => this.indexMessage(message))
+    retained.forEach((message) => this.indexMessage(message))
     this.upToDate = true
+    const seen = new Set()
     for (const message of messages) {
       const resolved = await this.resolveMessage(message)
-      if (resolved) this.upsertMessage(resolved)
+      if (resolved) seen.add(this.upsertMessage(resolved))
     }
+    retained.filter((message) => this.editing.has(message) && Number(message.dataset.messageId) && !seen.has(message))
+      .forEach((message) => this.removeMessage({ id: message.dataset.messageId, client_message_id: message.dataset.clientMessageId }))
     if (wasNearLatest) this.scrollToLatest(true)
     else this.$refs.messages.scrollTop = Math.max(0, this.$refs.messages.scrollHeight - distanceFromBottom)
   },
@@ -801,7 +822,9 @@ Alpine.data("messageStream", (options) => ({
   trimMessages() {
     while (this.$refs.messages.children.length > MAX_MESSAGES) {
       const removeFromTop = this.upToDate
-      const element = removeFromTop ? this.$refs.messages.firstElementChild : this.$refs.messages.lastElementChild
+      const messages = Array.from(this.$refs.messages.children)
+      const element = (removeFromTop ? messages : messages.reverse()).find((message) => !this.editing.has(message))
+      if (!element) return
       this.unindexMessage(element)
       element.remove()
       if (!removeFromTop) this.upToDate = false
