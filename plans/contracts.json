@@ -80,7 +80,7 @@
     },
     "webhooks": {
       "status": "verified",
-      "evidence": "Independent local HTTP receiver verifies actual queued delivery and persisted native bot reply; PHPUnit verifies no callback loop. PR8 uses one save-time/send-time globally routable public-unicast policy and a real Guzzle cURL-handler test to prove the connection pin, redirect refusal and unknown-length 20 MiB ceiling. Semantic removals of the IPv4 exclusions, IPv6 global-range guard, IPv6 special-purpose exclusions and 6to4 transition guard each turned the focused policy test red, supplementing the seven transport mutations."
+      "evidence": "Independent local HTTP receiver verifies actual queued delivery and persisted native bot reply; PHPUnit verifies no callback loop. PR8 uses PHP 8.5's global-range allow-class predicate at save and send time, corrected by an auditable 2025-10-09 snapshot covering every row in both IANA Special-Purpose Address Registries; Globally Reachable=True exceptions are admitted, False/N/A rows and multicast fail closed, and IPv4 embedding/translation transition prefixes are rejected. A real Guzzle cURL-handler test proves the connection pin, redirect refusal and unknown-length 20 MiB ceiling. Seven classifier-guard mutations and seven transport mutations each turned focused tests red."
     },
     "unfurl": {
       "status": "pending"
