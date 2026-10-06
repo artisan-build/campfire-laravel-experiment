@@ -74,6 +74,17 @@ final class AssetHeadTest extends TestCase
         $this->assertStringNotContainsString('setTimeout', $alpine);
     }
 
+    public function test_logout_always_reaches_the_server_when_push_cleanup_fails(): void
+    {
+        $alpine = file_get_contents(public_path('assets/campfire/alpine.js'));
+        $logout = substr($alpine, strpos($alpine, 'Alpine.data("logoutButton"'));
+
+        $this->assertStringContainsString('catch {', $logout);
+        $this->assertStringContainsString('finally {', $logout);
+        $this->assertStringContainsString('await wire.logout(endpoint)', $logout);
+        $this->assertLessThan(strpos($logout, 'await wire.logout(endpoint)'), strpos($logout, 'endpoint = subscription.endpoint'));
+    }
+
     public function test_default_and_rollback_module_graphs_are_transitively_closed(): void
     {
         foreach ([true, false] as $jsonStream) {

@@ -116,7 +116,7 @@ try {
     await admin.goto(`${baseUrl}/account/bots/new`)
     const form = admin.getByTestId("bot-form")
     await form.getByLabel("Bot name").fill(`PR8 Bot ${runId}`)
-    await form.getByLabel("Webhook URL").fill("https://example.test/pr8-hook")
+    await form.getByLabel("Webhook URL").fill("https://93.184.216.34/pr8-hook")
     await form.locator('input[type="file"]').setInputFiles({ name: "pr8-avatar.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") })
     await Promise.all([ admin.waitForURL(`${baseUrl}/account/bots`), form.getByRole("button", { name: "Save changes" }).click() ])
     const row = admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot ${runId}` })
@@ -248,9 +248,18 @@ try {
     await Promise.all([ transfer.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname)), transfer.getByTestId("transfer-form").getByRole("button", { name: "Sign in" }).click() ])
   })
 
-  await step("logout unsubscribe and login again", async () => {
+  await step("logout survives rejected unsubscribe and login again", async () => {
     await admin.goto(`${baseUrl}/users/me/profile`)
+    await admin.evaluate(() => {
+      PushSubscription.prototype.unsubscribe = async function () {
+        sessionStorage.setItem("pr8-unsubscribe-rejection-executed", "yes")
+        throw new Error("PR8 forced unsubscribe rejection")
+      }
+    })
     await Promise.all([ admin.waitForURL(`${baseUrl}/session/new`), admin.getByRole("button", { name: "Log out" }).click() ])
+    if (await admin.evaluate(() => sessionStorage.getItem("pr8-unsubscribe-rejection-executed")) !== "yes") throw new Error("Rejected unsubscribe control did not execute")
+    const protectedResponse = await admin.request.get(`${baseUrl}/account/bots`, { maxRedirects: 0 })
+    if (protectedResponse.status() !== 302 || !protectedResponse.headers().location?.endsWith("/session/new")) throw new Error("Rejected unsubscribe preserved the server session")
     await login(admin, process.env.PR8_ADMIN_EMAIL, process.env.PR8_ADMIN_PASSWORD)
   })
 

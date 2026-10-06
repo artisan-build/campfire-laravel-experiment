@@ -68,7 +68,7 @@ final class Pr8LivewireTest extends TestCase
             ->set('webhookUrl', 'not-a-webhook')
             ->call('save')
             ->assertHasErrors(['webhookUrl'])
-            ->set('webhookUrl', 'https://example.test/hook')
+            ->set('webhookUrl', 'https://93.184.216.34/hook')
             ->set('avatar', UploadedFile::fake()->image('relay.png'))
             ->call('save')
             ->assertRedirect(route('bots.index'));
@@ -76,7 +76,7 @@ final class Pr8LivewireTest extends TestCase
         $bot = User::where('name', 'Relay Bot')->firstOrFail();
         $this->assertSame(2, $bot->role);
         $this->assertDatabaseHas('memberships', ['user_id' => $bot->id, 'room_id' => $room->id]);
-        $this->assertDatabaseHas('webhooks', ['user_id' => $bot->id, 'url' => 'https://example.test/hook']);
+        $this->assertDatabaseHas('webhooks', ['user_id' => $bot->id, 'url' => 'https://93.184.216.34/hook']);
         $this->assertDatabaseHas('active_storage_attachments', ['record_type' => 'User', 'record_id' => $bot->id, 'name' => 'avatar']);
 
         $oldKey = $bot->bot_token;
@@ -170,7 +170,10 @@ final class Pr8LivewireTest extends TestCase
         Livewire::test(SignIn::class)->set('email', $user->email_address)->set('password', 'wrong')->call('login')->assertSet('failed', true);
         $this->assertSame(1, RateLimiter::attempts('login:127.0.0.1'));
 
+        session()->setId(str_repeat('a', 40));
+        $sessionId = session()->getId();
         Livewire::test(SignIn::class)->set('email', $user->email_address)->set('password', 'secret123456')->call('login')->assertRedirect(route('chat.root'));
+        $this->assertNotSame($sessionId, session()->getId());
         $this->assertDatabaseHas('sessions', ['user_id' => $user->id]);
 
         RateLimiter::clear('login:127.0.0.1');

@@ -14,6 +14,7 @@ use App\Support\Media;
 use App\Support\MessageWriter;
 use App\Support\RailsCrypto;
 use App\Support\RichTextRenderer;
+use App\Support\WebhookDestinations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -144,6 +145,7 @@ final class CampfireTest extends TestCase
 
     public function test_webhook_callback_reply_is_real_native_message_and_does_not_loop(): void
     {
+        app()->instance(WebhookDestinations::class, new WebhookDestinations(fn (): array => ['93.184.216.34']));
         [$u,$room] = $this->fixture();
         $room->update(['type' => 'Rooms::Direct']);
         $bot = User::create(['name' => 'Bender', 'bot_token' => 'BenderBot123', 'role' => 2, 'status' => 0]);

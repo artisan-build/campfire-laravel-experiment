@@ -1,5 +1,5 @@
 @php($assets = app(\App\Support\Assets::class))
-@php($permalink = "/rooms/".$message->room_id."/@".$message->id)
+@php($permalink = route('rooms.message', ['id' => $message->room_id, 'message' => $message->id], absolute: false))
 @php($dom = "message_".$message->client_message_id)
 <div class="message__body"><div class="message__body-content"><div class="message__meta"><h3 class="message__heading">
 <span class="message__author" title="{{ trim($message->creator->name.' – '.$message->creator->bio,' –') }}"><strong data-reply-target="author">{{ $message->creator->name }}</strong></span>

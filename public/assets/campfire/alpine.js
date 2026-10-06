@@ -144,15 +144,20 @@ Alpine.data("pushSubscriptions", wire => ({
 Alpine.data("logoutButton", wire => ({
   async logout() {
     let endpoint = null
-    if ("serviceWorker" in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration(window.location.origin)
-      const subscription = await registration?.pushManager?.getSubscription()
-      if (subscription) {
-        endpoint = subscription.endpoint
-        await subscription.unsubscribe()
+    try {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration(window.location.origin)
+        const subscription = await registration?.pushManager?.getSubscription()
+        if (subscription) {
+          endpoint = subscription.endpoint
+          await subscription.unsubscribe()
+        }
       }
+    } catch {
+      // Browser push cleanup is best-effort; server logout must still run.
+    } finally {
+      await wire.logout(endpoint)
     }
-    await wire.logout(endpoint)
   }
 }))
 

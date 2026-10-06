@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\BlobStorage;
 use App\Support\ChatEvents;
 use App\Support\MessageWriter;
+use App\Support\WebhookDestinations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -34,7 +35,7 @@ final class BotsController extends Controller
     public function create(Request $r)
     {
         abort_unless($r->user()->role === 1, 403);
-        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => 'nullable|url:http,https']);
+        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => ['nullable', 'url:http,https', 'max:2048', app(WebhookDestinations::class)->validationRule()]]);
         $bot = DB::transaction(function () use ($a) {
             $v = $a['user'];
             $url = $v['webhook_url'] ?? null;
@@ -60,7 +61,7 @@ final class BotsController extends Controller
     {
         abort_unless($r->user()->role === 1, 403);
         $bot = User::active()->where('role', 2)->findOrFail($id);
-        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => 'nullable|url:http,https']);
+        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => ['nullable', 'url:http,https', 'max:2048', app(WebhookDestinations::class)->validationRule()]]);
         DB::transaction(function () use ($bot, $a) {
             $v = $a['user'];
             $url = $v['webhook_url'] ?? null;

@@ -58,4 +58,19 @@ final class RouteContractTest extends TestCase
 
         $this->assertSame([], $offenders);
     }
+
+    public function test_indirect_blade_destinations_use_named_routes(): void
+    {
+        $offenders = [];
+        foreach (File::allFiles(resource_path('views')) as $file) {
+            $source = File::get($file->getPathname());
+            if (preg_match('/\$permalink\s*=\s*["\']\/rooms\//', $source)
+                || preg_match('/data-refresh(?:-room)?-url(?:-value)?="\//', $source)
+                || preg_match('/\?\?\s*["\']\/account\/logo["\']/', $source)) {
+                $offenders[] = $file->getRelativePathname();
+            }
+        }
+
+        $this->assertSame([], $offenders);
+    }
 }

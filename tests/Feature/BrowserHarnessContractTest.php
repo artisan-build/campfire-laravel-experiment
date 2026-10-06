@@ -25,7 +25,10 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('non admin bot access denied', $source);
         $this->assertStringContainsString('push registration test and cross-user protection', $source);
         $this->assertStringContainsString('session transfer locked credential and confirmation', $source);
-        $this->assertStringContainsString('logout unsubscribe and login again', $source);
+        $this->assertStringContainsString('logout survives rejected unsubscribe and login again', $source);
+        $this->assertStringContainsString('PushSubscription.prototype.unsubscribe = async function', $source);
+        $this->assertStringContainsString('pr8-unsubscribe-rejection-executed', $source);
+        $this->assertStringContainsString('Rejected unsubscribe preserved the server session', $source);
         $this->assertStringContainsString('bot delete', $source);
         $this->assertStringContainsString('Join-code substitution did not fail loudly', $source);
         $this->assertStringContainsString('Transfer-id substitution did not fail loudly', $source);

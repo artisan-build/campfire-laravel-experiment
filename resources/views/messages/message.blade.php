@@ -1,6 +1,6 @@
 @php
 $assets = app(\App\Support\Assets::class);
-$permalink = '/rooms/'.$message->room_id.'/@'.$message->id;
+$permalink = route('rooms.message', ['id' => $message->room_id, 'message' => $message->id], absolute: false);
 $dom = 'message_'.$message->client_message_id;
 @endphp
 <div id="{{ $dom }}" class="message" data-controller="reply" data-user-id="{{ $message->creator_id }}" data-message-id="{{ $message->id }}" data-message-timestamp="{{ $message->created_at->getTimestampMs() }}" data-message-updated-at="{{ $message->updated_at->getTimestampMs() }}" data-sort-value="{{ $message->created_at->getTimestampMs() }}" data-messages-target="message" data-search-results-target="message" data-refresh-room-target="message" data-reply-composer-outlet="#composer">

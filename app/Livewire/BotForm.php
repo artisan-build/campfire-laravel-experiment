@@ -6,6 +6,7 @@ use App\Models\Membership;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\BlobStorage;
+use App\Support\WebhookDestinations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
@@ -45,7 +46,7 @@ final class BotForm extends Component
         $validated = $this->validate([
             'name' => 'required|string|max:255',
             'bio' => 'nullable|string|max:10000',
-            'webhookUrl' => 'nullable|url:http,https|max:2048',
+            'webhookUrl' => ['nullable', 'url:http,https', 'max:2048', app(WebhookDestinations::class)->validationRule()],
             'avatar' => 'nullable|image|max:10240',
         ]);
 
