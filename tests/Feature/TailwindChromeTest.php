@@ -146,12 +146,20 @@ final class TailwindChromeTest extends TestCase
         $this->assertCount(1, $xpath->query('//main[@id="main-content"]/following-sibling::aside[@id="sidebar"]'));
 
         config(['campfire.json_message_stream' => false]);
-        $legacyDocument = $this->document($this->get('/rooms/'.$room->id)->assertOk());
-        $legacyXPath = new DOMXPath($legacyDocument);
+        $legacyResponse = $this->get('/rooms/'.$room->id)->assertOk();
+        $legacyXPath = new DOMXPath($this->document($legacyResponse));
         $legacyBody = $legacyXPath->query('//body')->item(0);
         $this->assertInstanceOf(DOMElement::class, $legacyBody);
         $this->assertContains('sidebar', preg_split('/\s+/', $legacyBody->getAttribute('class')));
-        $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]//form[@id="composer"]'));
+        // Older Linux libxml builds do not reliably nest the form under the unknown
+        // <turbo-frame> custom element, so assert the layout-shell boundary on the raw
+        // HTML rather than through a parser-dependent DOM descendant chain.
+        $legacyHtml = $legacyResponse->getContent();
+        $composerForm = strpos($legacyHtml, '<form id="composer"');
+        $this->assertNotFalse($composerForm);
+        $this->assertSame(1, substr_count($legacyHtml, '<form id="composer"'));
+        $this->assertStringContainsString('<main id="main-content"', substr($legacyHtml, 0, $composerForm));
+        $this->assertStringContainsString('</main>', substr($legacyHtml, $composerForm));
         $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]/footer[@id="footer"]'));
         $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]/following-sibling::aside[@id="sidebar"]'));
     }
