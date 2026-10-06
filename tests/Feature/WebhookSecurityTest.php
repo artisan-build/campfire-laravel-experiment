@@ -19,25 +19,25 @@ use Tests\TestCase;
 
 final class WebhookSecurityTest extends TestCase
 {
-    public function test_livewire_and_compatibility_bot_saves_reject_non_public_webhooks(): void
+    public function test_livewire_and_compatibility_bot_saves_reject_non_global_webhooks_without_dns(): void
     {
         [$administrator] = $this->fixture();
 
         Livewire::actingAs($administrator)->test(BotForm::class)
-            ->set('name', 'Private Relay')
-            ->set('webhookUrl', 'http://127.0.0.1:8080/internal')
+            ->set('name', 'Benchmark Relay')
+            ->set('webhookUrl', 'http://198.18.0.1:8080/internal')
             ->call('save')
             ->assertHasErrors(['webhookUrl']);
 
         $this->auth($administrator);
         $this->post(route('bots.store'), ['user' => [
-            'name' => 'Mixed Relay',
+            'name' => 'Documentation Relay',
             'bio' => '',
-            'webhook_url' => 'https://mixed.example/hook',
+            'webhook_url' => 'https://[2001:db8::1]/hook',
         ]])->assertSessionHasErrors(['user.webhook_url']);
 
-        $this->assertDatabaseMissing('users', ['name' => 'Private Relay']);
-        $this->assertDatabaseMissing('users', ['name' => 'Mixed Relay']);
+        $this->assertDatabaseMissing('users', ['name' => 'Benchmark Relay']);
+        $this->assertDatabaseMissing('users', ['name' => 'Documentation Relay']);
     }
 
     public function test_policy_rejects_every_non_public_resolution_and_builds_a_pinned_no_redirect_request(): void
@@ -62,7 +62,7 @@ final class WebhookSecurityTest extends TestCase
         $this->assertSame('*', $options['curl'][CURLOPT_NOPROXY]);
     }
 
-    public function test_policy_rejects_special_and_encoded_address_forms_before_resolution(): void
+    public function test_policy_allows_public_unicast_and_rejects_every_non_global_address_class_before_resolution(): void
     {
         $resolverCalls = 0;
         $policy = new WebhookDestinations(function () use (&$resolverCalls): array {
@@ -72,14 +72,39 @@ final class WebhookSecurityTest extends TestCase
         });
 
         foreach ([
+            'http://0.0.0.1/hook',
             'http://127.0.0.1/hook',
             'http://10.0.0.1/hook',
             'http://169.254.169.254/latest/meta-data',
             'http://100.64.0.1/hook',
+            'http://172.16.0.1/hook',
+            'http://192.0.0.1/hook',
+            'http://192.0.2.1/hook',
+            'http://192.31.196.1/hook',
+            'http://192.52.193.1/hook',
+            'http://192.88.99.1/hook',
             'http://192.168.1.1/hook',
+            'http://192.175.48.1/hook',
+            'http://198.18.0.1/hook',
+            'http://198.51.100.1/hook',
+            'http://203.0.113.1/hook',
+            'http://224.0.0.1/hook',
+            'http://239.255.255.255/hook',
+            'http://240.0.0.1/hook',
             'http://[::1]/hook',
+            'http://[::7f00:1]/hook',
+            'http://[64:ff9b::7f00:1]/hook',
+            'http://[64:ff9b:1::7f00:1]/hook',
+            'http://[100::1]/hook',
+            'http://[100:0:0:1::1]/hook',
+            'http://[2001::1]/hook',
+            'http://[2001:db8::1]/hook',
+            'http://[2002:7f00:1::]/hook',
+            'http://[2620:4f:8000::1]/hook',
+            'http://[3fff::1]/hook',
             'http://[fc00::1]/hook',
             'http://[fe80::1]/hook',
+            'http://[ff02::1]/hook',
             'http://[::ffff:127.0.0.1]/hook',
             'http://[::ffff:8.8.8.8]/hook',
             'http://2130706433/hook',
@@ -91,6 +116,8 @@ final class WebhookSecurityTest extends TestCase
             $this->assertNull($policy->resolve($url), $url);
         }
 
+        $this->assertSame(['host' => '93.184.216.34', 'port' => 80, 'ip' => '93.184.216.34'], $policy->resolve('http://93.184.216.34/hook'));
+        $this->assertSame(['host' => '2606:4700:4700::1111', 'port' => 443, 'ip' => '2606:4700:4700::1111'], $policy->resolve('https://[2606:4700:4700::1111]/hook'));
         $this->assertSame(0, $resolverCalls);
     }
 
@@ -134,6 +161,17 @@ final class WebhookSecurityTest extends TestCase
         $this->assertSame(['fixture.test:80:93.184.216.34'], $connectionPin);
         $this->assertSame('Bounded reply', Message::where('creator_id', '!=', $message->creator_id)->firstOrFail()->plainText());
         Http::assertSentCount(1);
+    }
+
+    public function test_delivery_rejects_a_persisted_non_global_destination_before_sending(): void
+    {
+        [$message] = $this->webhookFixture('http://198.18.0.1/hook');
+        Http::fake();
+
+        (new DeliverMessageNotifications($message->id, true))->handle();
+
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('messages', 1);
     }
 
     public function test_oversized_text_responses_are_not_persisted(): void
