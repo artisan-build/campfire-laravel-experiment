@@ -56,23 +56,30 @@ final class JsonMessageStreamTest extends TestCase
         }
         $this->assertStringContainsString('this.messagesByClientId.get(String(message.client_message_id))', $source);
         $this->assertStringContainsString('if (fetchRequired(message)', $source);
-        $this->assertStringContainsString('echo.private(`users.${options.userId}.rooms`)', $source);
-        $this->assertStringContainsString('.listen(".sidebar.changed"', $source);
+        $this->assertStringNotContainsString('echo.private(`users.${options.userId}.rooms`)', $source);
+        $this->assertStringNotContainsString('echo.private(`users.${options.userId}.unreads`)', $source);
+        $this->assertStringNotContainsString('echo.private(`users.${options.userId}.reads`)', $source);
+        $this->assertStringNotContainsString('refreshSidebar()', $source);
     }
 
-    public function test_default_sidebar_snapshot_is_static_html_and_fallback_keeps_turbo_sources(): void
+    public function test_room_page_always_mounts_the_livewire_sidebar_while_fallback_keeps_only_message_turbo_sources(): void
     {
-        [$author] = $this->fixture();
+        [$author, $room] = $this->fixture();
         $this->auth($author);
 
-        $this->get('/users/me/sidebar')->assertOk()
-            ->assertSee('id="user_sidebar"', false)
-            ->assertDontSee('turbo-echo-stream-source', false);
+        $response = $this->get('/rooms/'.$room->id)->assertOk()
+            ->assertSee('data-testid="sidebar-rooms"', false)
+            ->assertDontSee('<turbo-frame id="user_sidebar"', false)
+            ->assertDontSee('data-controller="rooms-list read-rooms', false);
+        $this->assertSame(1, substr_count($response->getContent(), 'data-testid="sidebar-rooms"'));
+        $this->assertSame(1, substr_count($response->getContent(), 'wire:snapshot='));
 
         config(['campfire.json_message_stream' => false]);
-        $this->get('/users/me/sidebar')->assertOk()
-            ->assertSee('<turbo-frame id="user_sidebar">', false)
-            ->assertSee('turbo-echo-stream-source', false);
+        $this->get('/rooms/'.$room->id)->assertOk()
+            ->assertSee('data-testid="sidebar-rooms"', false)
+            ->assertSee('<turbo-echo-stream-source channel="rooms.'.$room->id.'"', false)
+            ->assertDontSee('<turbo-frame id="user_sidebar"', false)
+            ->assertDontSee('<turbo-echo-stream-source channel="users.'.$author->id.'.rooms"', false);
     }
 
     public function test_message_history_json_is_ordered_and_uses_the_complete_http_resource(): void

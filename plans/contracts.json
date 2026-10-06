@@ -1,7 +1,7 @@
 {
   "reference_revision": "659f95748a115a360a37db9bf80a5361a560e14f",
   "runtime": "Laravel 13 / PHP 8.4",
-  "ui_bar": "Laravel-native Alpine message stream and Livewire settings active; branch-head browser verification complete",
+  "ui_bar": "Laravel-native Alpine message stream and Livewire settings/sidebar active; message/forms browser verified, sidebar live verification pending",
   "contracts": {
     "schema": {
       "status": "pending"
@@ -36,8 +36,8 @@
       "status": "pending"
     },
     "sidebar": {
-      "status": "verified",
-      "evidence": "The default path emits a small private sidebar.changed JSON signal after commit and fetches authoritative static sidebar HTML; the fallback retains member-specific Turbo replacement. Cross-tab default delivery passed the PR5 managed-Reverb browser matrix."
+      "status": "partially_verified",
+      "evidence": "Focused Livewire and feature tests verify authenticated membership filtering and ordering, exact server-derived rooms/unreads/reads listener keys, authoritative rerenders, JSON-only sidebar.changed broadcasts, profile/direct participant refreshes, and removal of sidebar Turbo/Stimulus ownership. A committed two-user/two-tab Chromium harness covers create, unread badge, and cross-tab read clearing but has not yet been run by the coordinator."
     },
     "search": {
       "status": "verified",
@@ -68,7 +68,7 @@
     },
     "websockets": {
       "status": "partially_verified",
-      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room/sidebar subscriptions and payload confidentiality are focused-test verified; managed-Reverb capture for all five mutation families and sustained multi-tab behavior remain pending."
+      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room and Livewire sidebar subscriptions, per-user authorization and payload confidentiality are focused-test verified; the PR7 managed-Reverb two-tab sidebar run and sustained multi-tab behavior remain pending."
     },
     "presence": {
       "status": "partially_verified",
@@ -101,7 +101,7 @@
     },
     "browser": {
       "status": "verified",
-      "evidence": "The PR5 two-context JSON/Alpine harness passed branch-head and exact managed-Reverb production verification. The PR6 fresh-PostgreSQL browser matrix passed all six persisted Livewire/Alpine checks with zero console problems; focused follow-up verified direct-room create/deduplication and closed-to-open persistence."
+      "evidence": "The PR5 two-context JSON/Alpine harness passed branch-head and exact managed-Reverb production verification. The PR6 fresh-PostgreSQL browser matrix passed all six persisted Livewire/Alpine checks with zero console problems; focused follow-up verified direct-room create/deduplication and closed-to-open persistence. The PR7 sidebar harness is committed but not yet run."
     },
     "benchmarks": {
       "status": "verified",

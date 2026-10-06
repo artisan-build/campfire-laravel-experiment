@@ -128,9 +128,7 @@ final class ChatController extends Controller
         $directs = $memberships->filter(fn ($m) => $m->room->type === 'Rooms::Direct')->sortByDesc(fn ($m) => $m->room->updated_at);
         $shared = $memberships->reject(fn ($m) => $m->room->type === 'Rooms::Direct')->sortBy(fn ($m) => mb_strtolower($m->room->name ?? ''));
 
-        return config('campfire.json_message_stream')
-            ? view('users.stream_sidebar', compact('directs', 'shared'))
-            : view('users.sidebar', compact('directs', 'shared'));
+        return view('users.sidebar', ['currentUser' => $r->user(), ...compact('directs', 'shared')]);
     }
 
     public function search(Request $r)

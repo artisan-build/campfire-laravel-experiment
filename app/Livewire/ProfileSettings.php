@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Attachment;
+use App\Models\Membership;
 use App\Models\User;
 use App\Support\BlobStorage;
 use App\Support\SidebarEvents;
@@ -41,6 +42,7 @@ final class ProfileSettings extends Component
             'avatar' => 'nullable|image|max:10240',
         ]);
         $user = $this->user();
+        $nameChanged = $user->name !== $validated['name'];
         $values = ['name' => $validated['name'], 'email_address' => $validated['email'], 'bio' => $validated['bio']];
         if ($validated['password'] !== '') {
             $values['password_digest'] = password_hash($validated['password'], PASSWORD_BCRYPT);
@@ -51,6 +53,14 @@ final class ProfileSettings extends Component
             $this->avatar = null;
         }
         $this->password = '';
+        if ($nameChanged) {
+            $directRoomIds = $user->rooms()->where('type', 'Rooms::Direct')->pluck('rooms.id');
+            $sidebarUserIds = Membership::query()
+                ->whereIn('room_id', $directRoomIds)
+                ->pluck('user_id')
+                ->all();
+            app(SidebarEvents::class)->refresh($sidebarUserIds);
+        }
         session()->flash('notice', 'Profile saved.');
     }
 

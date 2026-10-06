@@ -6,6 +6,33 @@ use Tests\TestCase;
 
 final class BrowserHarnessContractTest extends TestCase
 {
+    public function test_pr7_harness_is_committed_and_covers_create_unread_and_cross_tab_read(): void
+    {
+        $path = base_path('tests/Browser/pr7-livewire-sidebar.mjs');
+        $source = file_get_contents($path);
+
+        $this->assertFileExists($path);
+        $this->assertStringContainsString('require.resolve("playwright"', $source);
+        $this->assertStringContainsString('const contextA = await browser.newContext()', $source);
+        $this->assertStringContainsString('const contextB = await browser.newContext()', $source);
+        $this->assertStringContainsString('const pageB1 = await contextB.newPage()', $source);
+        $this->assertStringContainsString('const pageB2 = await contextB.newPage()', $source);
+        $this->assertStringContainsString('room create reaches both B tabs without navigation', $source);
+        $this->assertStringContainsString('unread reaches both B tabs without navigation', $source);
+        $this->assertStringContainsString('opening in one B tab clears the other tab', $source);
+        $this->assertStringContainsString('Created room link state was not exact', $source);
+        $this->assertStringContainsString('Tab 1 missed unread class', $source);
+        $this->assertStringContainsString('Other tab missed read clearing', $source);
+        $this->assertStringContainsString('writeFileSync(outputPath', $source);
+        $this->assertStringContainsString('states.push({ name, url: page.url(), room_id: roomId, link: state })', $source);
+        $this->assertStringNotContainsString('setInterval', $source);
+        $this->assertStringNotContainsString('page.reload()', $source);
+
+        foreach (['PR7_USER_A_EMAIL', 'PR7_USER_A_PASSWORD', 'PR7_USER_B_EMAIL', 'PR7_USER_B_PASSWORD'] as $credential) {
+            $this->assertStringContainsString($credential, $source);
+        }
+    }
+
     public function test_pr5_harness_is_committed_executable_and_covers_the_frozen_matrix(): void
     {
         $path = base_path('tests/Browser/pr5-json-stream.mjs');
