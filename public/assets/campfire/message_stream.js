@@ -374,11 +374,18 @@ Alpine.data("messageStream", (options) => ({
 
   async startEdit(message) {
     if (this.editing.has(message)) return
-    const presentation = message.querySelector("[data-stream-part=presentation]")
-    const original = presentation.cloneNode(true)
-    const restoreFocus = document.activeElement
+    const messageId = Number(message.dataset.messageId)
+    const activeElement = document.activeElement
+    const restoreAction = message.contains(activeElement) ? activeElement.closest("[data-stream-action]")?.dataset.streamAction : null
     const editableBody = await this.editableBody(message)
     if (editableBody === null) return
+    const indexedMessage = this.messagesById.get(messageId)
+    message = indexedMessage?.isConnected ? indexedMessage : message.isConnected ? message : null
+    if (!message || this.editing.has(message)) return
+    const presentation = message.querySelector("[data-stream-part=presentation]")
+    if (!presentation) return
+    const original = presentation.cloneNode(true)
+    const restoreFocus = restoreAction ? message.querySelector(`[data-stream-action="${restoreAction}"]`) : activeElement?.isConnected ? activeElement : null
     const editor = document.createElement("lexxy-editor")
     editor.className = "input lexxy-content"
     editor.setAttribute("aria-label", "Edit message")
@@ -401,6 +408,11 @@ Alpine.data("messageStream", (options) => ({
     presentation.replaceChildren(editor, actions)
     this.editing.set(message, { original, restoreFocus })
     this.$nextTick(() => {
+      if (!editor.isConnected || !editor.hasAttribute("connected") || !editor.querySelector('[contenteditable="true"]')) {
+        this.cancelEdit(message)
+        this.streamError = "The message editor could not be initialized."
+        return
+      }
       editor.value = editableBody
       editor.focus()
     })

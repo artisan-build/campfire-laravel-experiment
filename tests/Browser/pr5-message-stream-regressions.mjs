@@ -44,7 +44,7 @@ globalThis.fixtureReady = true
 <main x-data="messageStream({ roomId: 1, roomName: 'Room', roomType: 'Room', userId: Number(new URLSearchParams(location.search).get('user')), userName: 'Fixture User', userAvatarUrl: '', isAdmin: false })">
   <template x-ref="messageTemplate"><article data-message-id=""></article></template>
   <div x-ref="messages">
-    <article data-message-id="10" data-client-message-id="message-10" data-user-id="2" data-message-timestamp="1700000000000" data-message-updated-at="1700000000000" data-message-url="/rooms/1/messages/10" data-message-editable-body="&lt;p&gt;Canonical edit body&lt;/p&gt;" data-mention-ids="">
+    <article data-message-id="10" data-client-message-id="message-10" data-user-id="2" data-message-timestamp="1700000000000" data-message-updated-at="1700000000000" data-message-url="/rooms/1/messages/10" data-mention-ids="">
       <button id="edit-trigger" type="button" data-stream-action="edit">Edit</button>
       <div data-stream-part="presentation"><p>Rendered body</p></div>
       <time data-stream-time="date"></time><time data-stream-time="time"></time>
@@ -100,14 +100,42 @@ const userA = await context.newPage()
 const userB = await context.newPage()
 
 try {
+  let markEditRequestStarted
+  let releaseEditRequest
+  const editRequestStarted = new Promise((resolve) => { markEditRequestStarted = resolve })
+  const editRequestReleased = new Promise((resolve) => { releaseEditRequest = resolve })
+  let editRequests = 0
+  await userA.route("**/rooms/1/messages/10", async (route) => {
+    editRequests++
+    if (editRequests === 1) {
+      markEditRequestStarted()
+      await editRequestReleased
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ body: { editable_html: "<p>Canonical edit body</p>" } }),
+    })
+  })
   await Promise.all([ userA.goto(`${origin}/?user=1`), userB.goto(`${origin}/?user=2`) ])
   await Promise.all([ userA.waitForFunction(() => globalThis.fixtureReady), userB.waitForFunction(() => globalThis.fixtureReady) ])
 
   await userA.locator("#edit-trigger").focus()
-  await userA.evaluate(async () => {
+  await userA.evaluate(() => {
     const stream = Alpine.$data(document.querySelector("main"))
-    await stream.startEdit(document.querySelector("[data-message-id]"))
+    globalThis.pendingEdit = stream.startEdit(document.querySelector("[data-message-id]"))
   })
+  await editRequestStarted
+  await userA.evaluate(() => {
+    const stream = Alpine.$data(document.querySelector("main"))
+    const original = document.querySelector("[data-message-id]")
+    const replacement = original.cloneNode(true)
+    stream.unindexMessage(original)
+    original.replaceWith(replacement)
+    stream.indexMessage(replacement)
+  })
+  releaseEditRequest()
+  await userA.evaluate(() => globalThis.pendingEdit)
   const editEditor = userA.locator('[data-message-id] lexxy-editor[connected]')
   await editEditor.locator('[contenteditable="true"]').waitFor()
   const editableValue = await editEditor.evaluate((editor) => editor.value)

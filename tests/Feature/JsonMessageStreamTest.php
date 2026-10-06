@@ -138,6 +138,9 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertStringContainsString('event.key === "Escape"', $source);
         $this->assertStringContainsString('event.ctrlKey || event.metaKey', $source);
         $this->assertStringContainsString('restoreFocus?.focus()', $source);
+        $this->assertStringContainsString('const indexedMessage = this.messagesById.get(messageId)', $source);
+        $this->assertStringContainsString('indexedMessage?.isConnected', $source);
+        $this->assertStringContainsString('!editor.isConnected || !editor.hasAttribute("connected")', $source);
         $this->assertStringContainsString("this.addBoost(message.dataset.messageId, payload.boost)\n      pending.remove()", $source);
         $this->assertStringContainsString('mentionIds.includes(Number(options.userId))', $source);
         $this->assertStringContainsString('highlightElement(block)', $source);

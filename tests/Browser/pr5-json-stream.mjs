@@ -101,7 +101,7 @@ function message(page, text) {
 
 async function edit(page, oldText, newText, keyboard = true) {
   const row = message(page, oldText)
-  await row.locator("details").evaluate((details) => { details.open = true })
+  await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
   await row.locator('[data-stream-action="edit"]').click()
   const editor = row.locator("lexxy-editor")
   await editor.evaluate((element, body) => { element.value = `<p>${body}</p>` }, newText)
@@ -112,7 +112,7 @@ async function edit(page, oldText, newText, keyboard = true) {
 
 async function remove(page, text) {
   const row = message(page, text)
-  await row.locator("details").evaluate((details) => { details.open = true })
+  await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
   page.once("dialog", (dialog) => dialog.accept())
   await row.locator('[data-stream-action="delete"]').click()
   await row.waitFor({ state: "detached" })
@@ -191,7 +191,7 @@ try {
 
   await check("escape cancels edit", async () => {
     const row = message(userA, edited)
-    await row.locator("details").evaluate((details) => { details.open = true })
+    await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
     await row.locator('[data-stream-action="edit"]').click()
     await row.locator("lexxy-editor").press("Escape")
     if (await row.locator("lexxy-editor").count()) throw new Error("Editor remained after Escape")
@@ -199,7 +199,7 @@ try {
 
   await check("boost add remove and failed rollback", async () => {
     const row = message(userA, edited)
-    await row.locator("details").evaluate((details) => { details.open = true })
+    await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
     await row.locator('[data-stream-action="boost"]').first().click()
     await row.locator("[data-boost-id]").waitFor()
     await message(userB, edited).locator("[data-boost-id]").waitFor()
@@ -326,8 +326,8 @@ try {
 
   await check("touch menu dialog and responsive layouts", async () => {
     const row = message(userB2, edited)
-    await row.locator("summary").tap()
-    if (!await row.locator("details").evaluate((details) => details.open)) throw new Error("Touch did not open details menu")
+    await row.locator(".message__actions > details > summary").tap()
+    if (!await row.locator(".message__actions > details").evaluate((details) => details.open)) throw new Error("Touch did not open details menu")
     const desktopWidth = await userA.locator('[data-testid="app-content"]').evaluate((element) => element.getBoundingClientRect().width)
     const phoneWidth = await userB2.locator('[data-testid="app-content"]').evaluate((element) => element.getBoundingClientRect().width)
     if (desktopWidth <= phoneWidth) throw new Error("Desktop and phone layouts did not differ")

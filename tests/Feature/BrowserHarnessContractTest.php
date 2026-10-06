@@ -23,6 +23,10 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringNotContainsString('page.locator("#message_body").press(', $source);
         $this->assertStringContainsString('socket.connectToServer()', $source);
         $this->assertStringNotContainsString('unrouteWebSocket', $source);
+        $this->assertStringContainsString('row.locator(".message__actions > details")', $source);
+        $this->assertStringContainsString('row.locator(".message__actions > details > summary")', $source);
+        $this->assertStringNotContainsString('row.locator("details")', $source);
+        $this->assertStringNotContainsString('row.locator("summary")', $source);
 
         foreach ([
             'post and optimistic reconciliation',
@@ -66,6 +70,10 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('process.env.PR5_BROWSER_EXECUTABLE || undefined', $source);
         $this->assertStringContainsString('import "/assets/lexxy-a21f41d4.js"', $source);
         $this->assertStringContainsString('await stream.startEdit', $source);
+        $this->assertStringContainsString('await editRequestStarted', $source);
+        $this->assertStringContainsString('stream.unindexMessage(original)', $source);
+        $this->assertStringContainsString('original.replaceWith(replacement)', $source);
+        $this->assertStringContainsString('stream.indexMessage(replacement)', $source);
         $this->assertStringContainsString('lexxy-editor[connected]', $source);
         $this->assertStringContainsString('Connected edit editor did not receive the canonical body', $source);
         $this->assertStringContainsString('Ctrl+Enter did not activate edit save', $source);
