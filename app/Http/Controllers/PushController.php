@@ -11,7 +11,7 @@ final class PushController extends Controller
 {
     public function index(Request $r)
     {
-        return view('users.push', ['subscriptions' => DB::table('push_subscriptions')->where('user_id', $r->user()->id)->get()]);
+        return view('users.push');
     }
 
     public function create(Request $r)
@@ -29,7 +29,7 @@ final class PushController extends Controller
     {
         DB::table('push_subscriptions')->where('id', $id)->where('user_id', $r->user()->id)->delete();
 
-        return redirect('/users/me/push_subscriptions');
+        return redirect()->route('push.index', ['user' => 'me']);
     }
 
     public function test(Request $r, string $user, int $id)

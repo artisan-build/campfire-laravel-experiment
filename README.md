@@ -39,6 +39,10 @@ load Turbo, Action Cable compatibility, Turbo stream rendering, or the message-o
 The room sidebar and room, involvement, profile and account forms use nodeless Livewire 4. The
 sidebar derives its three private Echo listeners from the authenticated user and rerenders
 authoritative memberships for room-list, unread and read signals; no sidebar HTML is broadcast.
+Search, bot administration, device push subscriptions, signup, login, logout and session-transfer
+confirmation are also Livewire surfaces, with browser-only push and logout work owned by Alpine.
+Normal Blade links and forms generate named Laravel routes; the public credential-in-path bot API
+and the `/rails/active_storage/...` upload URLs retain their published shapes.
 Laravel's request guard now
 resolves the existing Campfire session into the same active human for controllers, Blade, Livewire
 and broadcasting, while room/message policies re-authorize each mutation. Livewire owns the single

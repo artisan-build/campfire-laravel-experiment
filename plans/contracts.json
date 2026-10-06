@@ -1,7 +1,7 @@
 {
   "reference_revision": "659f95748a115a360a37db9bf80a5361a560e14f",
   "runtime": "Laravel 13 / PHP 8.4",
-  "ui_bar": "Laravel-native Alpine message stream and Livewire settings/sidebar active; branch-head browser verification complete",
+  "ui_bar": "Laravel-native Alpine message stream and Livewire settings/sidebar/search/auth/bots/push active; PR8 branch-head browser verification pending",
   "contracts": {
     "schema": {
       "status": "pending"
@@ -41,7 +41,7 @@
     },
     "search": {
       "status": "verified",
-      "evidence": "Independent real writes/updates verified FTS and sanitized populated search."
+      "evidence": "Independent real writes/updates verified FTS and sanitized populated search. Focused Livewire tests verify disjoint room-result and per-user history boundaries with test-created data."
     },
     "boosts": {
       "status": "verified",
@@ -49,14 +49,14 @@
     },
     "accounts": {
       "status": "verified",
-      "evidence": "Independent browser verifies signup, role change, user deactivation/revocation, room access changes, bot create/key rotation/deactivation; 12 administration assertions passed."
+      "evidence": "Independent browser verifies signup, role change, user deactivation/revocation, room access changes, bot create/key rotation/deactivation; 12 administration assertions passed. Focused Livewire tests verify first-run, join-code and transfer credential revalidation, login rate limiting and logout session invalidation."
     },
     "users": {
       "status": "pending"
     },
     "bots": {
       "status": "verified",
-      "evidence": "Native raw-body API, JSON/boost and no-loop webhook tests pass. Independent administration browser verifies bot creation, key rotation and deactivation."
+      "evidence": "Native raw-body API, JSON/boost and no-loop webhook tests pass. Independent administration browser verifies bot creation, key rotation and deactivation. Focused Livewire tests verify current-admin authorization on every mutation, locked bot identity, active role-2 scoping, webhook validation and avatar persistence."
     },
     "uploads": {
       "status": "partially_verified",
@@ -75,7 +75,8 @@
       "evidence": "Native clock-controlled two-tab tests verify 60-second TTL, 50-second refresh, present/absent counters and room_id read payload. Browser connection/composer passes; sustained socket action oracle pending."
     },
     "push": {
-      "status": "pending"
+      "status": "partially_verified",
+      "evidence": "Focused Livewire tests verify accepted endpoint persistence, per-user list/remove/test scoping, cross-user rejection and queued DeliverPush dispatch without rendering endpoint or key material. Branch-head browser notification delivery remains coordinator-owned."
     },
     "webhooks": {
       "status": "verified",

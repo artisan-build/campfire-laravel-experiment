@@ -6,6 +6,36 @@ use Tests\TestCase;
 
 final class BrowserHarnessContractTest extends TestCase
 {
+    public function test_pr8_harness_is_committed_and_covers_livewire_routes_and_security_controls(): void
+    {
+        $path = base_path('tests/Browser/pr8-livewire-routes.mjs');
+        $source = file_get_contents($path);
+
+        $this->assertFileExists($path);
+        $this->assertStringContainsString('require.resolve("playwright"', $source);
+        $this->assertStringContainsString('getByTestId', $source);
+        $this->assertStringContainsString('bot api post update boost delete', $source);
+        $this->assertStringContainsString('search and personal history', $source);
+        $this->assertStringContainsString('bot edit and key rotation invalidates old URL', $source);
+        $this->assertStringContainsString('join signup with locked credential negative', $source);
+        $this->assertStringContainsString('non admin bot access denied', $source);
+        $this->assertStringContainsString('push registration test and cross-user protection', $source);
+        $this->assertStringContainsString('session transfer locked credential and confirmation', $source);
+        $this->assertStringContainsString('logout unsubscribe and login again', $source);
+        $this->assertStringContainsString('bot delete', $source);
+        $this->assertStringContainsString('Join-code substitution did not fail loudly', $source);
+        $this->assertStringContainsString('Transfer-id substitution did not fail loudly', $source);
+        $this->assertStringContainsString('Cross-user push removal did not fail loudly', $source);
+        $this->assertStringContainsString('Console problems:', $source);
+        $this->assertStringContainsString('writeFileSync(outputPath', $source);
+        $this->assertStringContainsString('process.exitCode = 1', $source);
+        $this->assertStringNotContainsString('setInterval', $source);
+
+        foreach (['PR8_ADMIN_EMAIL', 'PR8_ADMIN_PASSWORD', 'PR8_JOIN_CODE'] as $credential) {
+            $this->assertStringContainsString($credential, $source);
+        }
+    }
+
     public function test_pr7_harness_is_committed_and_covers_every_sidebar_transition(): void
     {
         $path = base_path('tests/Browser/pr7-livewire-sidebar.mjs');

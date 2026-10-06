@@ -114,4 +114,45 @@ Alpine.data("webShare", options => ({
   }
 }))
 
+Alpine.data("pushSubscriptions", wire => ({
+  error: "",
+
+  async subscribe() {
+    this.error = ""
+    try {
+      if (!("serviceWorker" in navigator) || !("Notification" in window)) throw new Error("Notifications are not supported on this device.")
+      const registration = await navigator.serviceWorker.getRegistration(window.location.origin) || await navigator.serviceWorker.register("/service-worker")
+      const permission = await Notification.requestPermission()
+      if (permission !== "granted") throw new Error("Notification permission was not granted.")
+      const key = document.querySelector('meta[name="vapid-public-key"]')?.content
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.decodeKey(key) })
+      const { endpoint, keys } = subscription.toJSON()
+      await wire.register(endpoint, keys.p256dh, keys.auth)
+    } catch (error) {
+      this.error = error.message || "Notifications could not be enabled."
+    }
+  },
+
+  decodeKey(value) {
+    const padding = "=".repeat((4 - value.length % 4) % 4)
+    const raw = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"))
+    return Uint8Array.from(raw, character => character.charCodeAt(0))
+  }
+}))
+
+Alpine.data("logoutButton", wire => ({
+  async logout() {
+    let endpoint = null
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration(window.location.origin)
+      const subscription = await registration?.pushManager?.getSubscription()
+      if (subscription) {
+        endpoint = subscription.endpoint
+        await subscription.unsubscribe()
+      }
+    }
+    await wire.logout(endpoint)
+  }
+}))
+
 })

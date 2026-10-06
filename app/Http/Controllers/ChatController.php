@@ -133,13 +133,7 @@ final class ChatController extends Controller
 
     public function search(Request $r)
     {
-        $query = Search::normalize($r->input('q', ''));
-        $messages = collect();
-        if (trim($query) !== '') {
-            $messages = Message::presentation()->join('message_search_index as idx', 'messages.id', '=', 'idx.message_id')->whereFullText('idx.body', $query)->whereIn('room_id', $r->user()->rooms()->select('rooms.id'))->select('messages.*')->orderByDesc('messages.created_at')->limit(100)->get()->reverse();
-        }
-
-        return view('searches.index', compact('query', 'messages'));
+        return view('searches.index');
     }
 
     public function recordSearch(Request $r)
@@ -147,14 +141,14 @@ final class ChatController extends Controller
         $query = Search::normalize($r->input('q', ''));
         DB::table('searches')->updateOrInsert(['user_id' => $r->user()->id, 'query' => $query], ['created_at' => now(), 'updated_at' => now()]);
 
-        return redirect('/searches?q='.urlencode($query));
+        return redirect()->route('searches.index', ['q' => $query]);
     }
 
     public function clearSearch(Request $r)
     {
         DB::table('searches')->where('user_id', $r->user()->id)->delete();
 
-        return redirect('/searches');
+        return redirect()->route('searches.index');
     }
 
     public function refresh(Request $r, int $room)
