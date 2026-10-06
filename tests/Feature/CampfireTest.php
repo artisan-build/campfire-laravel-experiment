@@ -151,7 +151,11 @@ final class CampfireTest extends TestCase
         $bot = User::create(['name' => 'Bender', 'bot_token' => 'BenderBot123', 'role' => 2, 'status' => 0]);
         Membership::create(['room_id' => $room->id, 'user_id' => $bot->id, 'involvement' => 'everything']);
         DB::table('webhooks')->insert(['user_id' => $bot->id, 'url' => 'http://fixture.test/hook', 'created_at' => now(), 'updated_at' => now()]);
-        Http::fake(['fixture.test/*' => Http::response('Hello from bot', 200, ['Content-Type' => 'text/plain'])]);
+        Http::fake(function ($request, array $options) {
+            $options['sink']->write('Hello from bot');
+
+            return Http::response('', 200, ['Content-Type' => 'text/plain']);
+        });
         $m = app(MessageWriter::class)->create($room, $u, ['body' => 'Hi bot'], true);
         (new DeliverMessageNotifications($m->id, true))->handle();
         $this->assertSame(2, Message::count());

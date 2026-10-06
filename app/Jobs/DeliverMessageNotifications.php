@@ -3,19 +3,20 @@
 namespace App\Jobs;
 
 use App\Models\Message;
+use App\Support\BoundedResponseStream;
 use App\Support\ChatEvents;
 use App\Support\MessageWriter;
 use App\Support\Presence;
 use App\Support\RichTextRenderer;
 use App\Support\WebhookDestinations;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use LengthException;
+use Throwable;
 
 final class DeliverMessageNotifications implements ShouldQueue
 {
@@ -45,34 +46,45 @@ final class DeliverMessageNotifications implements ShouldQueue
                 continue;
             }
             $payload = ['user' => ['id' => $m->creator_id, 'name' => $m->creator->name], 'room' => ['id' => $m->room_id, 'name' => $m->room->name, 'path' => '/rooms/'.$m->room_id.'/'.$bot->id.'-'.$bot->bot_token.'/messages'], 'message' => ['id' => $m->id, 'body' => ['html' => $m->richText?->body ?? '', 'plain' => trim(str_replace('@'.$bot->name, '', $m->plainText()))], 'path' => '/rooms/'.$m->room_id.'/@'.$m->id]];
+            $path = tempnam(storage_path('framework/cache'), 'webhook-');
+            if ($path === false) {
+                throw new \RuntimeException('Unable to create webhook response file.');
+            }
+            $resource = fopen($path, 'w+b');
+            if ($resource === false) {
+                unlink($path);
+                throw new \RuntimeException('Unable to open webhook response file.');
+            }
+            $sink = new BoundedResponseStream(Utils::streamFor($resource));
             try {
-                $reply = Http::connectTimeout(7)->timeout(7)->withOptions($destinations->requestOptions($destination))->post($url, $payload);
+                $reply = Http::connectTimeout(7)->timeout(7)->withOptions($destinations->requestOptions($destination, $sink))->post($url, $payload);
                 if ($reply->status() === 200 && in_array(strtok($reply->header('Content-Type'), ';'), ['text/plain', 'text/html'])) {
-                    $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => $this->readResponse($reply)]);
+                    $body = file_get_contents($path);
+                    if ($body === false) {
+                        throw new \RuntimeException('Unable to read webhook response file.');
+                    }
+                    $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => $body]);
                     app(ChatEvents::class)->created($created);
                 } elseif ($reply->header('Content-Type')) {
                     $mime = strtok($reply->header('Content-Type'), ';');
                     $extensions = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf', 'audio/mpeg' => 'mp3', 'video/mp4' => 'mp4', 'application/json' => 'json', 'text/csv' => 'csv'];
                     if (isset($extensions[$mime])) {
-                        $path = tempnam(storage_path('framework/cache'), 'webhook-');
-                        if ($path === false) {
-                            throw new \RuntimeException('Unable to create webhook response file.');
-                        }
-                        try {
-                            $this->readResponse($reply, $path);
-                            $file = new UploadedFile($path, 'attachment.'.$extensions[$mime], $mime, null, true);
-                            $created = app(MessageWriter::class)->create($m->room, $bot, ['attachment' => $file]);
-                            app(ChatEvents::class)->created($created);
-                        } finally {
-                            unlink($path);
-                        }
+                        $file = new UploadedFile($path, 'attachment.'.$extensions[$mime], $mime, null, true);
+                        $created = app(MessageWriter::class)->create($m->room, $bot, ['attachment' => $file]);
+                        app(ChatEvents::class)->created($created);
                     }
                 }
-            } catch (LengthException) {
-                continue;
-            } catch (ConnectionException) {
-                $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => 'Failed to respond within 7 seconds']);
-                app(ChatEvents::class)->created($created);
+            } catch (Throwable $error) {
+                if (! $sink->exceeded()) {
+                    if (! $error instanceof ConnectionException) {
+                        throw $error;
+                    }
+                    $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => 'Failed to respond within 7 seconds']);
+                    app(ChatEvents::class)->created($created);
+                }
+            } finally {
+                $sink->close();
+                unlink($path);
             }
         }
         $present = app(Presence::class)->inRoom($m->room_id);
@@ -81,42 +93,5 @@ final class DeliverMessageNotifications implements ShouldQueue
         foreach ($query->get() as $sub) {
             DeliverPush::dispatch((array) $sub, $payload);
         }
-    }
-
-    private function readResponse(Response $response, ?string $path = null): string
-    {
-        $length = $response->header('Content-Length');
-        if ($length !== '' && (int) $length > WebhookDestinations::MAX_RESPONSE_BYTES) {
-            throw new LengthException('Webhook response exceeded the allowed size.');
-        }
-
-        $stream = $response->toPsrResponse()->getBody();
-        $body = '';
-        $size = 0;
-        $file = $path === null ? null : fopen($path, 'wb');
-        if ($path !== null && $file === false) {
-            throw new \RuntimeException('Unable to open webhook response file.');
-        }
-
-        try {
-            while (! $stream->eof()) {
-                $chunk = $stream->read(8192);
-                $size += strlen($chunk);
-                if ($size > WebhookDestinations::MAX_RESPONSE_BYTES) {
-                    throw new LengthException('Webhook response exceeded the allowed size.');
-                }
-                if ($file) {
-                    fwrite($file, $chunk);
-                } else {
-                    $body .= $chunk;
-                }
-            }
-        } finally {
-            if ($file) {
-                fclose($file);
-            }
-        }
-
-        return $body;
     }
 }
