@@ -9,11 +9,7 @@
 <div class="ml-auto flex shrink-0 items-center gap-2"><x-ui.button href="/rooms/{{ $room->id }}/involvement" variant="ghost" class="hidden sm:inline-flex">Notifications</x-ui.button><x-ui.button href="/rooms/{{ $room->id }}/settings" variant="secondary" aria-label="Room settings"><img src="{{ app(\App\Support\Assets::class)->path('settings.svg') }}" width="20" height="20" aria-hidden="true"><span class="sr-only">Room settings</span></x-ui.button></div>
 @endsection
 @section('sidebar')
-@if(config('campfire.json_message_stream'))
-    @include('users.stream_sidebar')
-@else
-    <turbo-frame id="user_sidebar" src="/users/me/sidebar" target="_top" data-turbo-permanent="true" data-controller="rooms-list read-rooms turbo-frame" data-rooms-list-unread-class="unread" data-action="presence:present@window->rooms-list#read read-rooms:read->rooms-list#read turbo:frame-load->rooms-list#loaded refresh-room:visible@window->turbo-frame#reload"></turbo-frame>
-@endif
+<livewire:sidebar />
 @endsection
 @section('content')
 @php($assets = app(\App\Support\Assets::class))

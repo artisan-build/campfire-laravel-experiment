@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Events\RoomUnread;
+use App\Events\SidebarChanged;
 use App\Events\TurboStreamBroadcast;
 use App\Events\TypingNotification;
 use App\Http\Controllers\ChatController;
@@ -256,8 +257,8 @@ final class BroadcastingTest extends TestCase
             ->assertSee('<turbo-echo-stream-source channel="rooms.'.$room->id.'"', false);
 
         $this->get('/users/me/sidebar')->assertOk()
-            ->assertSee('<turbo-echo-stream-source channel="rooms">', false)
-            ->assertSee('<turbo-echo-stream-source channel="users.'.$author->id.'.rooms">', false);
+            ->assertSee('data-testid="sidebar-rooms"', false)
+            ->assertDontSee('turbo-echo-stream-source', false);
     }
 
     public function test_a_direct_message_refreshes_both_sidebars(): void
@@ -269,12 +270,13 @@ final class BroadcastingTest extends TestCase
         foreach ([$author->id, $other->id] as $id) {
             Membership::create(['room_id' => $direct->id, 'user_id' => $id, 'involvement' => 'everything']);
         }
-        Event::fake([TurboStreamBroadcast::class]);
+        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
 
         app(MessageWriter::class)->create($direct, $author, ['body' => '<p>Hi</p>']);
 
         foreach ([$author->id, $other->id] as $id) {
-            Event::assertDispatched(TurboStreamBroadcast::class, fn (TurboStreamBroadcast $e) => $e->channel === 'users.'.$id.'.rooms');
+            Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $id);
         }
+        Event::assertNotDispatched(TurboStreamBroadcast::class);
     }
 }

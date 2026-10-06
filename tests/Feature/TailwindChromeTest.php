@@ -259,10 +259,10 @@ final class TailwindChromeTest extends TestCase
         $roomResponse = $this->get('/rooms/'.$room->id)->assertOk();
         $roomDocument = $this->document($roomResponse);
         $roomPage = new DOMXPath($roomDocument);
-        $owners = $roomPage->query('//*[@data-testid="app-content" and contains(@x-data, "messageStream(")]');
+        $sidebars = $roomPage->query('//*[@data-testid="sidebar-rooms"]');
         $links = $roomPage->query('//*[@data-testid="sidebar-rooms"]//*[@data-room-id="'.$unreadRoom->id.'"]');
-        $this->assertNotFalse($owners);
-        $this->assertCount(1, $owners);
+        $this->assertNotFalse($sidebars);
+        $this->assertCount(1, $sidebars);
         $this->assertNotFalse($links);
         $this->assertCount(1, $links);
 
@@ -270,10 +270,9 @@ final class TailwindChromeTest extends TestCase
         $this->assertInstanceOf(DOMElement::class, $link);
         $this->assertContains('unread', preg_split('/\s+/', $link->getAttribute('class')));
 
-        $messageStream = file_get_contents(public_path('assets/campfire/message_stream.js'));
-        $this->assertStringContainsString('setRoomUnread(roomId, unread) {', $messageStream);
-        $this->assertStringContainsString('room.classList.toggle("unread", unread)', $messageStream);
-        $this->assertStringContainsString('document.querySelectorAll("[data-room-id].unread")', $messageStream);
+        $sidebar = file_get_contents(resource_path('views/users/sidebar.blade.php'));
+        $this->assertStringContainsString("'setAppBadge' in navigator", $sidebar);
+        $this->assertStringContainsString('navigator.clearAppBadge()', $sidebar);
         $this->assertStringNotContainsString('data-rooms-list-unread-class', $roomResponse->getContent());
 
         $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true, flags: JSON_THROW_ON_ERROR);

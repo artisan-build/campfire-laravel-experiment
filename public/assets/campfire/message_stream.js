@@ -92,9 +92,6 @@ Alpine.data("messageStream", (options) => ({
     echo?.leave(`rooms.${options.roomId}`)
     echo?.leave(`rooms.${options.roomId}.typing`)
     echo?.leave(`rooms.${options.roomId}.presence`)
-    echo?.leave(`users.${options.userId}.rooms`)
-    echo?.leave(`users.${options.userId}.unreads`)
-    echo?.leave(`users.${options.userId}.reads`)
   },
 
   subscribe() {
@@ -111,12 +108,6 @@ Alpine.data("messageStream", (options) => ({
     this.typingChannel = echo.private(`rooms.${options.roomId}.typing`)
       .listen(".typing", (payload) => this.receiveTyping(payload))
     this.presenceChannel = echo.join(`rooms.${options.roomId}.presence`)
-    this.sidebarChannel = echo.private(`users.${options.userId}.rooms`)
-      .listen(".sidebar.changed", () => this.refreshSidebar())
-    this.unreadChannel = echo.private(`users.${options.userId}.unreads`)
-      .listen(".unread", ({ roomId }) => this.setRoomUnread(roomId, true))
-    this.readChannel = echo.private(`users.${options.userId}.reads`)
-      .listen(".read", ({ room_id: roomId }) => this.setRoomUnread(roomId, false))
   },
 
   receiveMutation(apply) {
@@ -874,33 +865,6 @@ Alpine.data("messageStream", (options) => ({
 
   nearLatest() {
     return this.$refs.messages.scrollHeight - this.$refs.messages.scrollTop - this.$refs.messages.clientHeight <= 100
-  },
-
-  async setRoomUnread(roomId, unread) {
-    let room = document.querySelector(`[data-room-id="${Number(roomId)}"]`)
-    if (!room && unread) {
-      await this.refreshSidebar()
-      room = document.querySelector(`[data-room-id="${Number(roomId)}"]`)
-    }
-    if (room && Number(roomId) !== Number(options.roomId)) room.classList.toggle("unread", unread)
-    if (room && Number(roomId) === Number(options.roomId)) room.classList.remove("unread")
-    const count = document.querySelectorAll("[data-room-id].unread").length
-    if ("setAppBadge" in navigator && count > 0) navigator.setAppBadge(count)
-    else if ("clearAppBadge" in navigator) navigator.clearAppBadge()
-  },
-
-  async refreshSidebar() {
-    try {
-      const response = await fetch("/users/me/sidebar", { headers: { "Accept": "text/html" } })
-      if (!response.ok) throw new Error(`Request failed (${response.status})`)
-      const template = document.createElement("template")
-      template.innerHTML = await response.text()
-      const sidebar = template.content.firstElementChild
-      if (!sidebar || sidebar.id !== "user_sidebar") throw new Error("Invalid sidebar")
-      document.querySelector("#user_sidebar")?.replaceWith(sidebar)
-    } catch {
-      this.streamError = "The room list could not be refreshed."
-    }
   },
 
   get editorBlank() {

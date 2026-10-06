@@ -9,6 +9,7 @@ use App\Events\MessagePosted;
 use App\Events\MessageUpdated;
 use App\Events\RoomRead;
 use App\Events\RoomUnread;
+use App\Events\SidebarChanged;
 use App\Events\TurboStreamBroadcast;
 use App\Events\TypingNotification;
 use App\Models\Boost;
@@ -39,7 +40,7 @@ final class BroadcastCsrfTest extends TestCase
         config(['campfire.json_message_stream' => false]);
         Queue::fake();
         $this->forget();
-        foreach ([TurboStreamBroadcast::class, MessagePosted::class, MessageUpdated::class, MessageDeleted::class, BoostAdded::class, BoostRemoved::class, RoomUnread::class, RoomRead::class, TypingNotification::class] as $event) {
+        foreach ([TurboStreamBroadcast::class, MessagePosted::class, MessageUpdated::class, MessageDeleted::class, BoostAdded::class, BoostRemoved::class, RoomUnread::class, RoomRead::class, SidebarChanged::class, TypingNotification::class] as $event) {
             Event::listen($event, fn (object $broadcast) => $this->capture($broadcast));
         }
     }

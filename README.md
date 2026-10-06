@@ -36,7 +36,10 @@ Blade; posts, edits, deletes and boosts use the same `MessageResource` JSON cont
 Reverb, including optimistic reconciliation by `client_message_id`. The default import map does not
 load Turbo, Action Cable compatibility, Turbo stream rendering, or the message-only Stimulus stack.
 
-Room, involvement, profile and account forms use nodeless Livewire 4. Laravel's request guard now
+The room sidebar and room, involvement, profile and account forms use nodeless Livewire 4. The
+sidebar derives its three private Echo listeners from the authenticated user and rerenders
+authoritative memberships for room-list, unread and read signals; no sidebar HTML is broadcast.
+Laravel's request guard now
 resolves the existing Campfire session into the same active human for controllers, Blade, Livewire
 and broadcasting, while room/message policies re-authorize each mutation. Livewire owns the single
 Alpine runtime; Campfire providers register before `Livewire.start()`. The existing Rails-compatible
@@ -244,6 +247,9 @@ committed asset when frontend source changes.
   passed its managed-Reverb production matrix after the edit-reconciliation hotfix. The PR6 browser
   matrix verifies persisted room create/rename/open↔closed changes, involvement, profile/avatar and
   account changes, direct-room creation/deduplication, the single Alpine runtime and a clean console.
+  The PR7 two-user/two-tab sidebar harness passed against branch-head PostgreSQL and a local
+  Pusher-compatible relay: room creation, unread/app-badge delivery and cross-tab read clearing all
+  updated without navigation. Managed-Reverb production verification remains the merge-time rung.
 - **Direct-room deletion uses one policy.** Any current direct-room participant can delete it through
   either room route. This normalizes the previously divergent generic and namespaced HTTP decisions;
   the user-visible direct-room route already allowed the same capability.
