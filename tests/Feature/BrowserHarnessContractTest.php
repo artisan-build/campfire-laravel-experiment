@@ -6,7 +6,7 @@ use Tests\TestCase;
 
 final class BrowserHarnessContractTest extends TestCase
 {
-    public function test_pr7_harness_is_committed_and_covers_create_unread_and_cross_tab_read(): void
+    public function test_pr7_harness_is_committed_and_covers_every_sidebar_transition(): void
     {
         $path = base_path('tests/Browser/pr7-livewire-sidebar.mjs');
         $source = file_get_contents($path);
@@ -18,14 +18,24 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('const pageB1 = await contextB.newPage()', $source);
         $this->assertStringContainsString('const pageB2 = await contextB.newPage()', $source);
         $this->assertStringContainsString('room create reaches both B tabs without navigation', $source);
+        $this->assertStringContainsString('room rename reaches both B tabs without navigation', $source);
         $this->assertStringContainsString('unread reaches both B tabs without navigation', $source);
         $this->assertStringContainsString('opening in one B tab clears the other tab', $source);
+        $this->assertStringContainsString('room deletion reaches both B tabs without navigation', $source);
+        $this->assertStringContainsString('direct message reorders both B tabs without navigation', $source);
         $this->assertStringContainsString('Created room link state was not exact', $source);
+        $this->assertStringContainsString('Renamed room link state was not exact', $source);
         $this->assertStringContainsString('Tab 1 missed unread class', $source);
         $this->assertStringContainsString('Other tab missed read clearing', $source);
+        $this->assertStringContainsString('Deleted room link remained in a receiving tab', $source);
+        $this->assertStringContainsString('Tab 1 missed direct-room reorder', $source);
+        $this->assertStringContainsString('Room ${roomId} classes were not exact', $source);
         $this->assertStringContainsString('writeFileSync(outputPath', $source);
         $this->assertStringContainsString('states.push({ name, url: page.url(), room_id: roomId, link: state })', $source);
+        $this->assertStringContainsString('states.push({ name, url: page.url(), order: links.map((link) => link.room_id), links })', $source);
         $this->assertStringContainsString('/\\/rooms\\/\\d+\\/messages\\?before=0$/', $source);
+        $this->assertStringContainsString('message.type() === "error" && /\\/rooms\\/\\d+\\/messages\\?before=0$/.test(location)', $source);
+        $this->assertStringNotContainsString('message.text().includes("404 (Not Found)")', $source);
         $this->assertStringContainsString('consoleProblems.push(detail)', $source);
         $this->assertStringContainsString('console_advisories: consoleAdvisories', $source);
         $this->assertStringNotContainsString('setInterval', $source);

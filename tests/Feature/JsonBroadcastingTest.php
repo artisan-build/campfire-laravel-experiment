@@ -259,6 +259,29 @@ final class JsonBroadcastingTest extends TestCase
         Event::assertNotDispatched(TurboStreamBroadcast::class);
     }
 
+    public function test_controller_open_room_deletion_is_json_only_on_the_message_rollback_path(): void
+    {
+        [$owner, $room] = $this->fixture();
+        $member = User::create(['name' => 'Eligible Controller Member', 'role' => 0, 'status' => 0]);
+        $bot = User::create(['name' => 'Ignored Controller Bot', 'role' => 2, 'status' => 0, 'bot_token' => 'ignored-controller-bot']);
+        $inactive = User::create(['name' => 'Inactive Controller Member', 'role' => 0, 'status' => 2]);
+        foreach ([$member, $bot, $inactive] as $user) {
+            Membership::create(['room_id' => $room->id, 'user_id' => $user->id, 'involvement' => 'mentions']);
+        }
+        config(['campfire.json_message_stream' => false]);
+        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        $this->auth($owner);
+
+        $this->delete('/rooms/opens/'.$room->id)->assertRedirect('/');
+
+        Event::assertDispatchedTimes(SidebarChanged::class, 2);
+        Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $owner->id);
+        Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $member->id);
+        Event::assertNotDispatched(SidebarChanged::class, fn (SidebarChanged $event) => in_array($event->userId, [$bot->id, $inactive->id], true));
+        Event::assertNotDispatched(TurboStreamBroadcast::class);
+        $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
+    }
+
     private function fakeBroadcasts(): void
     {
         Event::fake([

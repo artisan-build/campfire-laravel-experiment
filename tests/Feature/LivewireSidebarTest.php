@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Events\SidebarChanged;
 use App\Events\TurboStreamBroadcast;
 use App\Livewire\ProfileSettings;
+use App\Livewire\RoomForm;
 use App\Livewire\Sidebar;
 use App\Models\Membership;
 use App\Models\Room;
@@ -111,6 +112,30 @@ final class LivewireSidebarTest extends TestCase
                 && ! str_contains(json_encode($payload, JSON_THROW_ON_ERROR), '<');
         });
         Event::assertNotDispatched(TurboStreamBroadcast::class);
+    }
+
+    public function test_livewire_open_room_deletion_is_json_only_on_the_message_rollback_path(): void
+    {
+        [$owner, $room] = $this->fixture();
+        $member = User::create(['name' => 'Eligible Member', 'role' => 0, 'status' => 0]);
+        $bot = User::create(['name' => 'Ignored Bot', 'role' => 2, 'status' => 0, 'bot_token' => 'ignored-delete-bot']);
+        $inactive = User::create(['name' => 'Inactive Member', 'role' => 0, 'status' => 2]);
+        foreach ([$member, $bot, $inactive] as $user) {
+            Membership::create(['room_id' => $room->id, 'user_id' => $user->id, 'involvement' => 'mentions']);
+        }
+        config(['campfire.json_message_stream' => false]);
+        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+
+        Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
+            ->call('delete')
+            ->assertRedirect('/');
+
+        Event::assertDispatchedTimes(SidebarChanged::class, 2);
+        Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $owner->id);
+        Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $member->id);
+        Event::assertNotDispatched(SidebarChanged::class, fn (SidebarChanged $event) => in_array($event->userId, [$bot->id, $inactive->id], true));
+        Event::assertNotDispatched(TurboStreamBroadcast::class);
+        $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
     }
 
     public function test_a_profile_name_change_refreshes_direct_participants_but_not_unrelated_users(): void

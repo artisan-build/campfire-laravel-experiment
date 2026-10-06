@@ -20,7 +20,10 @@ const outputPath = resolve(process.env.PR7_OUTPUT || "tmp/pr7-live/summary.json"
 const suffix = Date.now().toString(36)
 const anchorName = `Sidebar Anchor ${suffix}`
 const targetName = `Sidebar Target ${suffix}`
+const renamedTargetName = `Sidebar Renamed ${suffix}`
 const messageText = `Sidebar unread ${suffix}`
+const directMessageText = `Sidebar direct reorder ${suffix}`
+const baseLinkClasses = [ "rounded-xl", "px-3", "py-2", "text-sm", "font-medium", "hover:bg-white", "dark:hover:bg-stone-800" ]
 const results = []
 const states = []
 const consoleProblems = []
@@ -61,6 +64,16 @@ async function createClosedRoom(page, name, memberName) {
   return Number(new URL(page.url()).pathname.split("/").pop())
 }
 
+async function createDirectRoom(page, memberName = null) {
+  await page.goto(`${baseUrl}/rooms/directs/new`)
+  if (memberName) await page.locator("label", { hasText: memberName }).locator('input[type="checkbox"]').check()
+  await Promise.all([
+    page.waitForURL(/\/rooms\/\d+$/),
+    page.getByRole("button", { name: "Start Ping", exact: true }).click(),
+  ])
+  return Number(new URL(page.url()).pathname.split("/").pop())
+}
+
 function roomLink(page, roomId) {
   return page.locator(`[data-testid="sidebar-rooms"] a[data-room-id="${roomId}"]`)
 }
@@ -74,6 +87,43 @@ async function recordState(name, page, roomId) {
   }))
   states.push({ name, url: page.url(), room_id: roomId, link: state })
   return state
+}
+
+async function recordAbsentState(name, page, roomId, text, href) {
+  const present = await roomLink(page, roomId).count() > 0
+  states.push({ name, url: page.url(), room_id: roomId, present, expected_link: { text, href } })
+  if (present) throw new Error("Deleted room link remained in a receiving tab")
+}
+
+async function recordDirectState(name, page) {
+  const links = await page.locator('#direct_rooms a[data-room-id]').evaluateAll((elements) => elements.map((element) => ({
+    room_id: Number(element.dataset.roomId),
+    text: element.textContent.trim(),
+    href: element.getAttribute("href"),
+    classes: Array.from(element.classList),
+  })))
+  states.push({ name, url: page.url(), order: links.map((link) => link.room_id), links })
+  return links
+}
+
+async function waitForDirectOrder(page, firstId, secondId, errorMessage) {
+  await page.locator("#direct_rooms").evaluate((element, expected) => new Promise((resolve, reject) => {
+    const ordered = () => {
+      const ids = Array.from(element.querySelectorAll("a[data-room-id]"), (link) => Number(link.dataset.roomId))
+      return ids.indexOf(expected.firstId) >= 0 && ids.indexOf(expected.firstId) < ids.indexOf(expected.secondId)
+    }
+    const timeout = setTimeout(() => reject(new Error(expected.errorMessage)), 15_000)
+    const observer = new MutationObserver(() => {
+      if (ordered()) { clearTimeout(timeout); observer.disconnect(); resolve() }
+    })
+    observer.observe(element, { childList: true, subtree: true })
+    if (ordered()) { clearTimeout(timeout); observer.disconnect(); resolve() }
+  }), { firstId, secondId, errorMessage })
+}
+
+function assertExactLink(link, roomId, text, classes) {
+  if (!link || link.room_id !== roomId || link.text !== text || link.href !== `/rooms/${roomId}`) throw new Error(`Room ${roomId} link state was not exact`)
+  if (JSON.stringify(link.classes) !== JSON.stringify(classes)) throw new Error(`Room ${roomId} classes were not exact`)
 }
 
 function lexxyEditable(page) {
@@ -96,7 +146,7 @@ for (const page of [ pageA, pageB1, pageB2 ]) {
     if (![ "warning", "error" ].includes(message.type())) return
     const location = message.location().url || "unknown"
     const detail = `${message.type()}: ${message.text()} [${location}]`
-    if (message.type() === "error" && message.text().includes("404 (Not Found)") && /\/rooms\/\d+\/messages\?before=0$/.test(location)) {
+    if (message.type() === "error" && /\/rooms\/\d+\/messages\?before=0$/.test(location)) {
       consoleAdvisories.push(detail)
     } else {
       consoleProblems.push(detail)
@@ -112,12 +162,31 @@ try {
   })
   const memberName = await pageB1.locator('meta[name="current-user-name"]').getAttribute("content")
   if (!memberName) throw new Error("User B name was not rendered")
+  const authorName = await pageA.locator('meta[name="current-user-name"]').getAttribute("content")
+  if (!authorName) throw new Error("User A name was not rendered")
+
+  let directTargetId
+  let directControlId
+  await step("prepare direct room ordering", async () => {
+    directTargetId = await createDirectRoom(pageA, memberName)
+    await pageA.waitForTimeout(1_100)
+    directControlId = await createDirectRoom(pageB1)
+  })
 
   let anchorId
   await step("prepare two-tab anchor room", async () => {
     anchorId = await createClosedRoom(pageA, anchorName, memberName)
     await Promise.all([ pageB1.goto(`${baseUrl}/rooms/${anchorId}`), pageB2.goto(`${baseUrl}/rooms/${anchorId}`) ])
     await Promise.all([ pageB1.locator('[data-testid="sidebar-rooms"]').waitFor(), pageB2.locator('[data-testid="sidebar-rooms"]').waitFor() ])
+    await Promise.all([
+      waitForDirectOrder(pageB1, directControlId, directTargetId, "Tab 1 direct room fixture order was not newest-first"),
+      waitForDirectOrder(pageB2, directControlId, directTargetId, "Tab 2 direct room fixture order was not newest-first"),
+    ])
+    const initialDirects = await Promise.all([ recordDirectState("direct-before-tab-1", pageB1), recordDirectState("direct-before-tab-2", pageB2) ])
+    for (const links of initialDirects) {
+      assertExactLink(links.find((link) => link.room_id === directControlId), directControlId, "", baseLinkClasses)
+      assertExactLink(links.find((link) => link.room_id === directTargetId), directTargetId, authorName, baseLinkClasses)
+    }
   })
 
   let targetId
@@ -128,6 +197,23 @@ try {
     if (pageB1.url() !== before[0] || pageB2.url() !== before[1]) throw new Error("B navigated while receiving the created room")
     const statesNow = await Promise.all([ recordState("created-tab-1", pageB1, targetId), recordState("created-tab-2", pageB2, targetId) ])
     if (statesNow.some((state) => state.text !== targetName || state.href !== `/rooms/${targetId}`)) throw new Error("Created room link state was not exact")
+  })
+
+  await step("room rename reaches both B tabs without navigation", async () => {
+    const before = [ pageB1.url(), pageB2.url() ]
+    await pageA.goto(`${baseUrl}/rooms/closeds/${targetId}/edit`)
+    await pageA.locator("#room_name").fill(renamedTargetName)
+    await Promise.all([
+      pageA.waitForURL(new RegExp(`/rooms/${targetId}$`)),
+      pageA.getByRole("button", { name: "Save room", exact: true }).click(),
+    ])
+    await Promise.all([
+      roomLink(pageB1, targetId).filter({ hasText: renamedTargetName }).waitFor(),
+      roomLink(pageB2, targetId).filter({ hasText: renamedTargetName }).waitFor(),
+    ])
+    if (pageB1.url() !== before[0] || pageB2.url() !== before[1]) throw new Error("B navigated while receiving the renamed room")
+    const statesNow = await Promise.all([ recordState("renamed-tab-1", pageB1, targetId), recordState("renamed-tab-2", pageB2, targetId) ])
+    if (statesNow.some((state) => state.text !== renamedTargetName || state.href !== `/rooms/${targetId}`)) throw new Error("Renamed room link state was not exact")
   })
 
   await step("unread reaches both B tabs without navigation", async () => {
@@ -180,6 +266,40 @@ try {
     if (state.classes.includes("unread")) throw new Error("Other B tab retained unread class")
     const badges = await pageB2.evaluate(() => globalThis.__pr7Badge)
     if (badges.at(-1) !== 0) throw new Error("Read transition did not clear the app badge")
+  })
+
+  await step("room deletion reaches both B tabs without navigation", async () => {
+    const before = [ pageB1.url(), pageB2.url() ]
+    await pageA.goto(`${baseUrl}/rooms/closeds/${targetId}/edit`)
+    pageA.once("dialog", (dialog) => dialog.accept())
+    await Promise.all([
+      pageA.waitForURL(`${baseUrl}/`),
+      pageA.getByRole("button", { name: `Delete ${renamedTargetName}`, exact: true }).click(),
+      roomLink(pageB1, targetId).waitFor({ state: "detached" }),
+      roomLink(pageB2, targetId).waitFor({ state: "detached" }),
+    ])
+    if (pageB1.url() !== before[0] || pageB2.url() !== before[1]) throw new Error("B navigated while receiving room deletion")
+    await recordAbsentState("deleted-tab-1", pageB1, targetId, renamedTargetName, `/rooms/${targetId}`)
+    await recordAbsentState("deleted-tab-2", pageB2, targetId, renamedTargetName, `/rooms/${targetId}`)
+  })
+
+  await step("direct message reorders both B tabs without navigation", async () => {
+    const before = [ pageB1.url(), pageB2.url() ]
+    await pageA.goto(`${baseUrl}/rooms/${directTargetId}`)
+    const editable = lexxyEditable(pageA)
+    await editable.fill(directMessageText)
+    await editable.press("Enter")
+    await pageA.getByText(directMessageText, { exact: true }).waitFor()
+    await Promise.all([
+      waitForDirectOrder(pageB1, directTargetId, directControlId, "Tab 1 missed direct-room reorder"),
+      waitForDirectOrder(pageB2, directTargetId, directControlId, "Tab 2 missed direct-room reorder"),
+    ])
+    if (pageB1.url() !== before[0] || pageB2.url() !== before[1]) throw new Error("B navigated while receiving direct-room reorder")
+    const reordered = await Promise.all([ recordDirectState("direct-reordered-tab-1", pageB1), recordDirectState("direct-reordered-tab-2", pageB2) ])
+    for (const links of reordered) {
+      assertExactLink(links.find((link) => link.room_id === directTargetId), directTargetId, authorName, [ ...baseLinkClasses, "unread" ])
+      assertExactLink(links.find((link) => link.room_id === directControlId), directControlId, "", baseLinkClasses)
+    }
   })
 
   await step("browser console remains clean", async () => {
