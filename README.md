@@ -36,6 +36,12 @@ Blade; posts, edits, deletes and boosts use the same `MessageResource` JSON cont
 Reverb, including optimistic reconciliation by `client_message_id`. The default import map does not
 load Turbo, Action Cable compatibility, Turbo stream rendering, or the message-only Stimulus stack.
 
+Room, involvement, profile and account forms use nodeless Livewire 4. Laravel's request guard now
+resolves the existing Campfire session into the same active human for controllers, Blade, Livewire
+and broadcasting, while room/message policies re-authorize each mutation. Livewire owns the single
+Alpine runtime; Campfire providers register before `Livewire.start()`. The existing Rails-compatible
+cookie and CSRF encoding deliberately remains in place until the later session cutover.
+
 That cutover deliberately gives up Turbo prefetch, view transitions and restoration visits. Normal
 links and forms continue to use browser navigation. A temporary `config('campfire.json_message_stream')`
 rollback switch defaults to the JSON implementation and retains the old Turbo entry point, stream
@@ -234,9 +240,13 @@ committed asset when frontend source changes.
 - **Turbo navigation behavior is temporarily absent.** The default nodeless Alpine path does not
   provide Turbo prefetch, view transitions or restoration visits. The false-flag rollback path keeps
   them until PR9.
-- **PR5 browser proof is pending.** The committed two-context harness at
-  `tests/Browser/pr5-json-stream.mjs` covers the JSON mutation, reconnect, sidebar, media, responsive
-  and frame-confidentiality matrix, but branch-head and post-merge managed-Reverb runs remain required.
+- **The JSON stream and Livewire forms are browser-verified.** The committed PR5 two-context harness
+  passed its managed-Reverb production matrix after the edit-reconciliation hotfix. The PR6 browser
+  matrix verifies persisted room create/rename/open↔closed changes, involvement, profile/avatar and
+  account changes, direct-room creation/deduplication, the single Alpine runtime and a clean console.
+- **Direct-room deletion uses one policy.** Any current direct-room participant can delete it through
+  either room route. This normalizes the previously divergent generic and namespaced HTTP decisions;
+  the user-visible direct-room route already allowed the same capability.
 - **Message presentation residue remains.** Socket-created `/play` messages do not synthesize the
   legacy sound widget or autoplay; local timestamps lack the old full-timestamp hover text; custom
   boosts use the native prompt; and some inactive legacy data hooks remain for rollback.

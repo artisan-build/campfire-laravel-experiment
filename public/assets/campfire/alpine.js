@@ -1,4 +1,5 @@
-import Alpine from "alpinejs"
+document.addEventListener("livewire:init", () => {
+const Alpine = window.Alpine
 
 Alpine.data("appShell", () => ({
   sidebarOpen: false,
@@ -113,4 +114,4 @@ Alpine.data("webShare", options => ({
   }
 }))
 
-Alpine.start()
+})

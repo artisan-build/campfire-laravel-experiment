@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\Room;
 use App\Models\User;
 use App\Support\RoomAccess;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Channel authorization. Every channel the browser can name is listed here and everything else is
@@ -20,10 +22,10 @@ Broadcast::channel('users.{id}.unreads', fn (User $user, int $id) => (int) $user
 Broadcast::channel('users.{id}.reads', fn (User $user, int $id) => (int) $user->id === $id);
 
 // A room's message stream and its typing indicator, for members only.
-Broadcast::channel('rooms.{room}', fn (User $user, int $room) => RoomAccess::member($user, $room));
-Broadcast::channel('rooms.{room}.typing', fn (User $user, int $room) => RoomAccess::member($user, $room));
+Broadcast::channel('rooms.{room}', fn (User $user, int $room) => ($model = Room::find($room)) && Gate::forUser($user)->allows('view', $model));
+Broadcast::channel('rooms.{room}.typing', fn (User $user, int $room) => ($model = Room::find($room)) && Gate::forUser($user)->allows('view', $model));
 
 // Presence. Returning an array admits the user and gives every other member their identity.
-Broadcast::channel('rooms.{room}.presence', fn (User $user, int $room) => RoomAccess::member($user, $room)
+Broadcast::channel('rooms.{room}.presence', fn (User $user, int $room) => ($model = Room::find($room)) && Gate::forUser($user)->allows('view', $model)
     ? ['id' => $user->id, 'name' => $user->name]
     : null);

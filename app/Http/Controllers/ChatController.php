@@ -12,6 +12,7 @@ use App\Support\Search;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 final class ChatController extends Controller
 {
@@ -75,7 +76,7 @@ final class ChatController extends Controller
     public function edit(Request $r, int $room, int $id)
     {
         $m = $this->findRoom($r, $room)->messages()->presentation()->findOrFail($id);
-        abort_unless($r->user()->canAdminister($m), 403);
+        Gate::authorize('update', $m);
 
         return view('messages.edit', ['message' => $m]);
     }
@@ -99,7 +100,7 @@ final class ChatController extends Controller
     public function update(Request $r, int $room, int $id)
     {
         $m = $this->findRoom($r, $room)->messages()->findOrFail($id);
-        abort_unless($r->user()->canAdminister($m), 403);
+        Gate::authorize('update', $m);
         app(MessageWriter::class)->update($m, $r->input('message', []));
         app(ChatEvents::class)->updated($m);
 
@@ -109,7 +110,7 @@ final class ChatController extends Controller
     public function destroy(Request $r, int $room, int $id)
     {
         $m = $this->findRoom($r, $room)->messages()->findOrFail($id);
-        abort_unless($r->user()->canAdminister($m), 403);
+        Gate::authorize('delete', $m);
         $s = app(ChatEvents::class)->delete($m);
 
         if ($r->expectsJson()) {

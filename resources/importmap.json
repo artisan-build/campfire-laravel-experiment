@@ -1,7 +1,6 @@
 {
   "imports": {
     "application": "ASSET:campfire/application.js",
-    "alpinejs": "/assets/alpine.esm-f00594ce.js",
     "campfire/alpine": "ASSET:campfire/alpine.js",
     "@hotwired/stimulus": "ASSET:stimulus.min.js",
     "@hotwired/stimulus-loading": "ASSET:stimulus-loading.js",

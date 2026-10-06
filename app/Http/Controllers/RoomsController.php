@@ -9,6 +9,7 @@ use App\Support\MessageWriter;
 use App\Support\SidebarEvents;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 final class RoomsController extends Controller
 {
@@ -76,7 +77,7 @@ final class RoomsController extends Controller
     public function edit(Request $r, string $kind, int $id)
     {
         $room = $this->find($r, $kind, $id);
-        abort_unless($kind === 'directs' || $r->user()->canAdminister($room), 403);
+        Gate::authorize($kind === 'directs' ? 'view' : 'update', $room);
 
         return view('rooms.form', ['kind' => $kind, 'room' => $room, 'users' => User::active()->orderByRaw('LOWER(name)')->get(), 'selected' => $room->users()->pluck('users.id')->all()]);
     }
@@ -84,8 +85,7 @@ final class RoomsController extends Controller
     public function update(Request $r, string $kind, int $id)
     {
         $room = $this->find($r, $kind, $id);
-        abort_unless($r->user()->canAdminister($room), 403);
-        abort_if($room->type === 'Rooms::Direct', 403);
+        Gate::authorize('update', $room);
         $previousMembers = $room->users()->pluck('users.id')->all();
         DB::transaction(function () use ($r, $room, $kind) {
             $room->update(['name' => $r->input('room.name', 'New room'), 'type' => $this->type($kind)]);
@@ -104,7 +104,7 @@ final class RoomsController extends Controller
     public function destroy(Request $r, int $id, ?string $kind = null)
     {
         $room = $kind ? $this->find($r, $kind, $id) : $r->user()->rooms()->findOrFail($id);
-        abort_unless(($kind === 'directs' && $room->type === 'Rooms::Direct') || $r->user()->canAdminister($room), 403);
+        Gate::authorize('delete', $room);
         $previousMembers = $room->users()->pluck('users.id')->all();
         DB::transaction(function () use ($room) {
             foreach ($room->messages()->get() as $m) {
@@ -153,7 +153,6 @@ final class RoomsController extends Controller
     private function creationPermission(Request $r, string $kind): void
     {
         $this->type($kind);
-        $settings = json_decode(DB::table('accounts')->value('settings') ?? '{}', true);
-        abort_if($kind !== 'directs' && ($settings['restrict_room_creation_to_administrators'] ?? false) && $r->user()->role !== 1, 403);
+        Gate::authorize('create', [Room::class, $kind]);
     }
 }

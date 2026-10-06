@@ -1,4 +1,3 @@
-import Alpine from "alpinejs"
 import { csrfToken, getEcho, onConnectionChange, reconnect } from "campfire/echo/config"
 
 const MESSAGE_KEYS = [ "id", "client_message_id", "created_at", "updated_at", "body", "creator", "room", "url", "attachment", "boosts", "mentions" ]
@@ -38,6 +37,9 @@ function plainText(value) {
   template.innerHTML = value
   return template.content.textContent?.trim() || ""
 }
+
+document.addEventListener("livewire:init", () => {
+const Alpine = window.Alpine
 
 Alpine.data("messageStream", (options) => ({
   files: [],
@@ -913,3 +915,4 @@ Alpine.data("messageStream", (options) => ({
     return "ontouchstart" in window || navigator.maxTouchPoints > 0
   },
 }))
+})

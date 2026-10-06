@@ -4,3 +4,5 @@ import "campfire/confirm"
 import "campfire/alpine"
 import "initializers"
 import "controllers"
+
+window.Livewire.start()

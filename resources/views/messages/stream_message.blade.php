@@ -14,8 +14,8 @@
         </div><div class="flex flex-wrap border-top margin-block-start-half pad-block-start-half message__actions-grid">
             <button type="button" class="btn message__action-btn center full-width" data-stream-action="reply">Reply</button>
             <button type="button" class="btn message__action-btn center full-width" data-stream-action="copy">Copy link</button>
-            <button type="button" class="btn message__action-btn center full-width message__edit-btn" data-stream-action="edit" data-owner-action @if(! $currentUser->canAdminister($message)) hidden @endif>Edit</button>
-            <button type="button" class="btn btn--negative message__action-btn center full-width" data-stream-action="delete" data-owner-action @if(! $currentUser->canAdminister($message)) hidden @endif>Delete</button>
+            <button type="button" class="btn message__action-btn center full-width message__edit-btn" data-stream-action="edit" data-owner-action @cannot('update', $message) hidden @endcannot>Edit</button>
+            <button type="button" class="btn btn--negative message__action-btn center full-width" data-stream-action="delete" data-owner-action @cannot('delete', $message) hidden @endcannot>Delete</button>
         </div></div>
     </details></div></div>
     @include('messages.presentation', ['stream' => true])
