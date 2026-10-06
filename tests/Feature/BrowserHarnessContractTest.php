@@ -16,6 +16,7 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('process.env.PR8_HEADLESS !== "false"', $source);
         $this->assertStringContainsString('process.env.PR8_PROFILE_ROOT', $source);
         $this->assertSame(3, substr_count($source, 'chromium.launchPersistentContext('));
+        $this->assertStringContainsString('const deadline = Date.now() + 30_000', $source);
         $this->assertStringContainsString('getByTestId', $source);
         $this->assertStringContainsString('bot api post update boost delete', $source);
         $this->assertStringContainsString('search and personal history', $source);

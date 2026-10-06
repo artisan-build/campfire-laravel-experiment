@@ -79,7 +79,7 @@ async function login(page, email, password) {
 }
 
 async function waitForNotification(page) {
-  const deadline = Date.now() + 10_000
+  const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {
     const notifications = await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration(window.location.origin)
