@@ -19,14 +19,26 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringNotContainsString('writeFileSync(outputPath, payload', $source);
         $this->assertStringContainsString('page.locator(\'form[action="/session"]\').getByRole("button", { name: "Sign in", exact: true }).click()', $source);
         $this->assertStringNotContainsString('page.locator(\'button[type="submit"]\').click()', $source);
-        $this->assertStringContainsString('page.locator(\'#message_body [contenteditable="true"]\').press(', $source);
+        $this->assertStringContainsString('function lexxyEditable(scope, editorSelector = "lexxy-editor")', $source);
+        $this->assertStringContainsString('lexxyEditable(page, "#message_body").evaluate(', $source);
+        $this->assertStringContainsString('lexxyEditable(page, "#message_body").press(', $source);
+        $this->assertStringContainsString('lexxyEditable(row).evaluate(', $source);
+        $this->assertStringContainsString('lexxyEditable(row).press(process.platform', $source);
+        $this->assertStringContainsString('lexxyEditable(row).press("Escape")', $source);
         $this->assertStringNotContainsString('page.locator("#message_body").press(', $source);
+        $this->assertStringNotContainsString('page.locator("#message_body").evaluate(', $source);
         $this->assertStringContainsString('socket.connectToServer()', $source);
         $this->assertStringNotContainsString('unrouteWebSocket', $source);
         $this->assertStringContainsString('row.locator(".message__actions > details")', $source);
         $this->assertStringContainsString('row.locator(".message__actions > details > summary")', $source);
         $this->assertStringNotContainsString('row.locator("details")', $source);
         $this->assertStringNotContainsString('row.locator("summary")', $source);
+        $this->assertStringContainsString('const messageId = await message(page, oldText).getAttribute("data-message-id")', $source);
+        $this->assertStringContainsString('const row = messageById(page, messageId)', $source);
+        $this->assertStringContainsString('await row.filter({ hasText: newText }).waitFor()', $source);
+        $this->assertStringNotContainsString('const row = message(page, oldText)', $source);
+        $this->assertStringNotContainsString('row.locator("lexxy-editor").press("Escape")', $source);
+        $this->assertStringNotContainsString('const editor = row.locator("lexxy-editor")', $source);
 
         foreach ([
             'post and optimistic reconciliation',

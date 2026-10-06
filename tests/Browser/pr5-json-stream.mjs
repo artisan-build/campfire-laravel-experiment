@@ -81,8 +81,14 @@ async function login(page, email, password) {
   ])
 }
 
+function lexxyEditable(scope, editorSelector = "lexxy-editor") {
+  return scope.locator(`${editorSelector} [contenteditable="true"]`)
+}
+
 async function setEditor(page, value) {
-  await page.locator("#message_body").evaluate((editor, body) => {
+  await lexxyEditable(page, "#message_body").evaluate((editable, body) => {
+    const editor = editable.closest("lexxy-editor")
+    if (!editor) throw new Error("Lexxy editor host is missing")
     editor.value = body
     editor.dispatchEvent(new CustomEvent("lexxy:change", { bubbles: true }))
   }, value)
@@ -90,7 +96,7 @@ async function setEditor(page, value) {
 
 async function post(page, text, keyboard = false) {
   await setEditor(page, `<p>${text}</p>`)
-  if (keyboard) await page.locator('#message_body [contenteditable="true"]').press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
+  if (keyboard) await lexxyEditable(page, "#message_body").press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
   else await page.locator('[data-testid="room-json-composer"] button[type="submit"]').click()
   await page.locator("[data-message-id]", { hasText: text }).waitFor()
 }
@@ -99,15 +105,24 @@ function message(page, text) {
   return page.locator("[data-message-id]", { hasText: text }).last()
 }
 
+function messageById(page, id) {
+  return page.locator(`[data-message-id="${id}"]`).last()
+}
+
 async function edit(page, oldText, newText, keyboard = true) {
-  const row = message(page, oldText)
+  const messageId = await message(page, oldText).getAttribute("data-message-id")
+  if (!messageId || messageId === "0") throw new Error(`Cannot edit unstable message id ${messageId || "missing"}`)
+  const row = messageById(page, messageId)
   await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
   await row.locator('[data-stream-action="edit"]').click()
-  const editor = row.locator("lexxy-editor")
-  await editor.evaluate((element, body) => { element.value = `<p>${body}</p>` }, newText)
-  if (keyboard) await editor.locator('[contenteditable="true"]').press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
+  await lexxyEditable(row).evaluate((editable, body) => {
+    const editor = editable.closest("lexxy-editor")
+    if (!editor) throw new Error("Lexxy editor host is missing")
+    editor.value = `<p>${body}</p>`
+  }, newText)
+  if (keyboard) await lexxyEditable(row).press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter")
   else await row.locator('[data-stream-action="save-edit"]').click()
-  await message(page, newText).waitFor()
+  await row.filter({ hasText: newText }).waitFor()
 }
 
 async function remove(page, text) {
@@ -190,10 +205,12 @@ try {
   })
 
   await check("escape cancels edit", async () => {
-    const row = message(userA, edited)
+    const messageId = await message(userA, edited).getAttribute("data-message-id")
+    if (!messageId) throw new Error("Cannot cancel edit without a stable message id")
+    const row = messageById(userA, messageId)
     await row.locator(".message__actions > details").evaluate((details) => { details.open = true })
     await row.locator('[data-stream-action="edit"]').click()
-    await row.locator("lexxy-editor").press("Escape")
+    await lexxyEditable(row).press("Escape")
     if (await row.locator("lexxy-editor").count()) throw new Error("Editor remained after Escape")
   })
 
