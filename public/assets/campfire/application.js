@@ -5,3 +5,5 @@ import "campfire/echo"
 import "campfire/alpine"
 import "initializers"
 import "controllers"
+
+window.Livewire.start()

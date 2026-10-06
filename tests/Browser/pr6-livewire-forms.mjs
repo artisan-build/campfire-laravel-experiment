@@ -39,6 +39,14 @@ async function check(name, operation) {
   }
 }
 
+async function waitForLivewireResponse(operation, endpoint = "update") {
+  const [ response ] = await Promise.all([
+    page.waitForResponse((candidate) => candidate.request().method() === "POST" && new URL(candidate.url()).pathname.endsWith(`/${endpoint}`)),
+    operation(),
+  ])
+  if (!response.ok()) throw new Error(`Livewire ${endpoint} failed (${response.status()})`)
+}
+
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PR6_BROWSER_EXECUTABLE || undefined })
 const context = await browser.newContext()
 await context.addInitScript(() => {
@@ -71,6 +79,10 @@ try {
       page.getByRole("button", { name: "Save room" }).click(),
     ])
     roomId = new URL(page.url()).pathname.split("/").pop()
+    const streamInitialized = await page.locator('[data-testid="app-content"]').evaluate((element) =>
+      element._x_dataStack?.some((data) => data.messagesById instanceof Map) === true
+    )
+    if (!streamInitialized) throw new Error("JSON message stream did not initialize")
     await page.goto(`${baseUrl}/rooms/opens/${roomId}/edit`)
     await page.locator('#room_name').fill(renamedRoom)
     await page.getByRole("button", { name: "Make private" }).click()
@@ -86,16 +98,23 @@ try {
   await check("Livewire involvement persists", async () => {
     await page.goto(`${baseUrl}/rooms/${roomId}/involvement`)
     await page.locator('input[type="radio"][value="everything"]').check()
-    await page.getByRole("button", { name: "Save notifications" }).click()
+    await waitForLivewireResponse(() => page.getByRole("button", { name: "Save notifications" }).click())
     await page.reload()
     if (!await page.locator('input[type="radio"][value="everything"]').isChecked()) throw new Error("Involvement did not persist")
   })
 
   await check("Livewire profile name and avatar persist", async () => {
     await page.goto(`${baseUrl}/users/me/profile`)
+    const uploadFinished = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/update"))
+    await waitForLivewireResponse(
+      () => page.locator('[data-testid="profile-form"] input[type="file"]').setInputFiles(avatarPath),
+      "upload-file",
+    )
+    if (!(await uploadFinished).ok()) throw new Error("Livewire upload registration failed")
     await page.locator('[data-testid="profile-form"] input[wire\\:model="name"]').fill(`${profileName} Updated`)
-    await page.locator('[data-testid="profile-form"] input[type="file"]').setInputFiles(avatarPath)
-    await page.getByRole("button", { name: "Save changes" }).click()
+    await waitForLivewireResponse(() => page.getByRole("button", { name: "Save changes" }).click())
+    const validationErrors = await page.locator('[data-testid="profile-form"] .text-red-600').allTextContents()
+    if (validationErrors.length > 0) throw new Error(`Profile validation failed: ${validationErrors.join(" | ")}`)
     await page.reload()
     const value = await page.locator('[data-testid="profile-form"] input[wire\\:model="name"]').inputValue()
     if (value !== `${profileName} Updated`) throw new Error("Profile name did not persist")
@@ -106,7 +125,7 @@ try {
   await check("Livewire account name and existing Alpine clipboard persist", async () => {
     await page.goto(`${baseUrl}/account/edit`)
     await page.locator('[data-testid="account-form"] input[wire\\:model="name"]').fill(accountName)
-    await page.getByRole("button", { name: "Save changes" }).click()
+    await waitForLivewireResponse(() => page.getByRole("button", { name: "Save changes" }).click())
     await page.reload()
     const value = await page.locator('[data-testid="account-form"] input[wire\\:model="name"]').inputValue()
     if (value !== accountName) throw new Error("Account name did not persist")

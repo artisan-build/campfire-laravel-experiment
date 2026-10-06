@@ -42,12 +42,16 @@ final class AssetHeadTest extends TestCase
         $html = $this->get('/session/new')->assertOk()->getContent();
         $alpine = file_get_contents(public_path('assets/campfire/alpine.js'));
         $messageStream = file_get_contents(public_path('assets/campfire/message_stream.js'));
+        $application = file_get_contents(public_path('assets/campfire/application_json.js'));
 
         $this->assertSame(1, substr_count($html, 'livewire.js'));
         $this->assertMatchesRegularExpression('/<script src="[^"]*livewire\.js\?id=[^"]+"[^>]*data-update-uri=/', $html);
+        $this->assertStringContainsString('window.livewireScriptConfig', $html);
+        $this->assertLessThan(strpos($html, 'livewire.js'), strpos($html, 'window.livewireScriptConfig'));
         $this->assertStringNotContainsString('alpine.esm', $html);
         $this->assertStringNotContainsString('import Alpine', $alpine);
         $this->assertStringNotContainsString('Alpine.start()', $alpine);
+        $this->assertStringContainsString('window.Livewire.start()', $application);
         $this->assertStringNotContainsString('import Alpine', $messageStream);
         $this->assertStringContainsString('document.addEventListener("livewire:init"', $alpine);
         $this->assertStringContainsString('document.addEventListener("livewire:init"', $messageStream);

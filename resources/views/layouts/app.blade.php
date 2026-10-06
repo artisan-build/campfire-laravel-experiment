@@ -55,6 +55,7 @@
     </div>
 </dialog>
 <a href="https://once.com" class="fixed bottom-3 left-3 hidden opacity-40 transition hover:opacity-100 lg:block" target="_blank" rel="noreferrer" aria-label="Once software from 37signals home page"><img src="{{ $assets->path('campfire-icon.png') }}" alt="" width="34" height="29"></a>
-@livewireScripts(['defer' => true])
+@livewireScriptConfig
+{!! \Livewire\Mechanisms\FrontendAssets\FrontendAssets::js([]) !!}
 </body>
 </html>

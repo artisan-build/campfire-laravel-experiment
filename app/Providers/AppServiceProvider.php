@@ -13,9 +13,9 @@ use App\Support\BlobStorage;
 use App\Support\RailsCrypto;
 use App\Support\RichTextRenderer;
 use App\Support\Vapid;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
