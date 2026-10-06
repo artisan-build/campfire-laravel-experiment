@@ -250,10 +250,7 @@ try {
     await remoteBoost.waitFor({ state: "detached" })
     await row.locator(`[data-boost-id="${boostId}"]`).waitFor({ state: "detached" })
 
-    await userA.route("**/messages/*/boosts", async (route) => {
-      await userA.unroute("**/messages/*/boosts")
-      await route.abort()
-    })
+    await userA.route("**/messages/*/boosts", (route) => route.abort(), { times: 1 })
     await row.locator('[data-stream-action="boost"]').first().click()
     await userA.locator('[data-testid="room-stream-error"]').filter({ hasText: "boost was not saved" }).waitFor()
     if (await row.locator('[data-boost-id^="pending-"]').count()) throw new Error("Failed pending boost remained")

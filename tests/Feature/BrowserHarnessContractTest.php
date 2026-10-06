@@ -43,6 +43,8 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('await page.context().setOffline(false)', $source);
         $this->assertStringContainsString('const content = boost.locator(\'[data-stream-action="reveal-boost"]\')', $source);
         $this->assertStringContainsString('await removeBoost.waitFor({ state: "visible" })', $source);
+        $this->assertStringContainsString('await userA.route("**/messages/*/boosts", (route) => route.abort(), { times: 1 })', $source);
+        $this->assertStringNotContainsString('userA.unroute("**/messages/*/boosts")', $source);
         $this->assertStringNotContainsString('const row = message(page, oldText)', $source);
         $this->assertStringNotContainsString('row.locator("lexxy-editor").press("Escape")', $source);
         $this->assertStringNotContainsString('const editor = row.locator("lexxy-editor")', $source);
