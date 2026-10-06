@@ -7,7 +7,7 @@
     <x-ui.panel class="max-w-xl text-center">
         <h1 class="text-3xl font-black tracking-tight">Ping members</h1>
         <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">@foreach($room->users->where('id','!=',$currentUser->id) as $member)<div class="rounded-2xl bg-stone-100 p-4 dark:bg-stone-800"><img class="mx-auto size-20 rounded-full object-cover" src="{{ $member->avatarUrl() }}" width="80" height="80" loading="lazy" alt=""><strong class="mt-2 block truncate">{{ $member->name }}</strong></div>@endforeach</div>
-        <form action="/rooms/directs/{{ $room->id }}" method="post" class="mt-8">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-turbo-confirm="Are you sure you want to delete this ping and all messages in it? This can’t be undone.">Delete Ping</x-ui.button></form>
+        <form action="/rooms/directs/{{ $room->id }}" method="post" class="mt-8">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-confirm="Are you sure you want to delete this ping and all messages in it? This can’t be undone." data-turbo-confirm="Are you sure you want to delete this ping and all messages in it? This can’t be undone.">Delete Ping</x-ui.button></form>
     </x-ui.panel>
 @elseif($kind === 'directs')
     <turbo-frame id="direct_rooms_control" target="_top">
@@ -42,7 +42,7 @@
             </section>
             <x-ui.button type="submit" variant="primary">Save room</x-ui.button>
         </form>
-        @if($room)<form action="/rooms/{{ $kind }}/{{ $room->id }}" method="post" class="mt-6 border-t border-stone-200 pt-6 text-center dark:border-stone-700">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-turbo-confirm="Are you sure you want to delete this room and all messages in it? This can’t be undone.">Delete {{ $room->name }}</x-ui.button></form>@endif
+        @if($room)<form action="/rooms/{{ $kind }}/{{ $room->id }}" method="post" class="mt-6 border-t border-stone-200 pt-6 text-center dark:border-stone-700">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-confirm="Are you sure you want to delete this room and all messages in it? This can’t be undone." data-turbo-confirm="Are you sure you want to delete this room and all messages in it? This can’t be undone.">Delete {{ $room->name }}</x-ui.button></form>@endif
     </x-ui.panel>
 @endif
 </div>

@@ -56,7 +56,15 @@ final class CampfireTest extends TestCase
         $this->get('/up.json')->assertOk()->assertJsonPath('status', 'up');
         $this->get('/rooms/'.$room->id)->assertRedirect('/session/new');
         $this->auth($u);
-        $this->get('/rooms/'.$room->id)->assertOk()->assertSee('Hello Campfire')->assertSee('turbo-echo-stream-source', false);
+        $this->get('/rooms/'.$room->id)->assertOk()
+            ->assertSee('Hello Campfire')
+            ->assertSee('messageStream(', false)
+            ->assertSee('data-testid="room-message-template"', false)
+            ->assertDontSee('turbo-echo-stream-source', false);
+
+        config(['campfire.json_message_stream' => false]);
+        $this->get('/rooms/'.$room->id)->assertOk()
+            ->assertSee('<turbo-echo-stream-source channel="rooms.'.$room->id.'"', false);
         $this->get('/users/me/sidebar')->assertOk()->assertSee('Watercooler');
         $this->get('/searches?q=Hello')->assertOk()->assertSee('Hello Campfire');
     }
@@ -227,7 +235,7 @@ final class CampfireTest extends TestCase
 
         $upload = new class($source, 'picture.png', 'image/png', null, true) extends UploadedFile
         {
-            public function getMimeType(): ?string
+            public function getMimeType(): string
             {
                 return 'image/png';
             }

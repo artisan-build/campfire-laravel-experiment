@@ -23,7 +23,7 @@
         <div class="flex flex-wrap gap-2">
             <span x-data="clipboard(@js(url('/join/'.$account->join_code)))"><x-ui.button @click="copy()" x-bind:class="{ 'bg-emerald-600 text-white': copied }"><span x-text="copied ? 'Copied' : 'Copy invitation link'">Copy invitation link</span></x-ui.button></span>
             <x-ui.button href="/qr_code/{{ rtrim(strtr(base64_encode(url('/join/'.$account->join_code)), '+/', '-_'), '=') }}">QR code</x-ui.button>
-            @if($currentUser->role === 1)<form action="/account/join_code" method="post">@csrf<x-ui.button type="submit" variant="danger" data-turbo-confirm="Are you sure you want to generate a new invite code?">Reset invite link</x-ui.button></form>@endif
+            @if($currentUser->role === 1)<form action="/account/join_code" method="post">@csrf<x-ui.button type="submit" variant="danger" data-confirm="Are you sure you want to generate a new invite code?" data-turbo-confirm="Are you sure you want to generate a new invite code?">Reset invite link</x-ui.button></form>@endif
         </div>
     </section>
 
@@ -34,7 +34,7 @@
                 <img class="size-10 rounded-full object-cover" src="{{ $u->avatarUrl() }}" width="40" height="40" loading="lazy" alt=""><strong class="min-w-0 flex-1 truncate">{{ $u->name }}</strong>
                 @if($currentUser->role === 1 && $u->status === 0)
                     <form action="/account/users/{{ $u->id }}" method="post" data-controller="form">@csrf @method('PATCH')<input type="hidden" name="user[role]" value="member"><label class="flex cursor-pointer items-center gap-2 text-sm"><input class="size-4 accent-orange-500" type="checkbox" name="user[role]" value="administrator" data-action="form#submit" @checked($u->role === 1) @disabled($u->id === $currentUser->id)><span>Admin</span></label></form>
-                    @if($u->id !== $currentUser->id)<form action="/account/users/{{ $u->id }}" method="post">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-turbo-confirm="Are you sure you want to permanently remove this person from the account? This can’t be undone.">Delete</x-ui.button></form>@endif
+                    @if($u->id !== $currentUser->id)<form action="/account/users/{{ $u->id }}" method="post">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-confirm="Are you sure you want to permanently remove this person from the account? This can’t be undone." data-turbo-confirm="Are you sure you want to permanently remove this person from the account? This can’t be undone.">Delete</x-ui.button></form>@endif
                 @endif
                 @if($u->id === $currentUser->id)<x-ui.button href="/users/me/profile" variant="ghost">My settings</x-ui.button>@endif
             </div>

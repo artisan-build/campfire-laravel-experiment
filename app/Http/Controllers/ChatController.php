@@ -28,14 +28,17 @@ final class ChatController extends Controller
         $query = $room->messages()->presentation();
         if ($message) {
             $at = $room->messages()->findOrFail($message);
-            $messages = $query->clone()->where('created_at', '<', $at->getRawOriginal('created_at'))->orderByDesc('created_at')->limit(40)->get()->reverse()->concat([$at->load(['creator', 'room.users', 'richText', 'boosts.booster', 'attachment.blob'])])->concat($query->clone()->where('created_at', '>', $at->getRawOriginal('created_at'))->orderBy('created_at')->limit(40)->get());
+            $messages = $query->clone()->where(fn ($q) => $q->where('created_at', '<', $at->getRawOriginal('created_at'))->orWhere(fn ($tie) => $tie->where('created_at', $at->getRawOriginal('created_at'))->where('id', '<', $at->id)))->orderByDesc('created_at')->orderByDesc('id')->limit(40)->get()->reverse()->concat([$at->load(['creator', 'room.users', 'richText', 'boosts.booster', 'attachment.blob'])])->concat($query->clone()->where(fn ($q) => $q->where('created_at', '>', $at->getRawOriginal('created_at'))->orWhere(fn ($tie) => $tie->where('created_at', $at->getRawOriginal('created_at'))->where('id', '>', $at->id)))->orderBy('created_at')->orderBy('id')->limit(40)->get());
         } else {
-            $messages = $query->orderByDesc('created_at')->limit(40)->get()->reverse();
+            $messages = $query->orderByDesc('created_at')->orderByDesc('id')->limit(40)->get()->reverse()->values();
         }
         $r->session()->put('last_room_id', $room->id);
         $this->markRead($r->user()->id, $room->id);
+        $memberships = $r->user()->memberships()->where('involvement', '!=', 'invisible')->with('room.users')->get();
+        $directs = $memberships->filter(fn ($membership) => $membership->room->type === 'Rooms::Direct')->sortByDesc(fn ($membership) => $membership->room->updated_at);
+        $shared = $memberships->reject(fn ($membership) => $membership->room->type === 'Rooms::Direct')->sortBy(fn ($membership) => mb_strtolower($membership->room->name ?? ''));
 
-        return response()->view('rooms.show', compact('room', 'messages'))->withCookie(cookie('last_room', (string) $room->id, 60 * 24 * 365 * 20));
+        return response()->view('rooms.show', compact('room', 'messages', 'directs', 'shared') + ['messageStream' => true])->withCookie(cookie('last_room', (string) $room->id, 60 * 24 * 365 * 20));
     }
 
     public function messages(Request $r, int $room)
@@ -44,13 +47,13 @@ final class ChatController extends Controller
         $q = $room->messages()->presentation();
         if ($r->filled('before')) {
             $at = $room->messages()->findOrFail($r->input('before'));
-            $q->where('created_at', '<', $at->getRawOriginal('created_at'));
+            $q->where(fn ($query) => $query->where('created_at', '<', $at->getRawOriginal('created_at'))->orWhere(fn ($tie) => $tie->where('created_at', $at->getRawOriginal('created_at'))->where('id', '<', $at->id)));
         }
         if ($r->filled('after')) {
             $at = $room->messages()->findOrFail($r->input('after'));
-            $messages = $q->where('created_at', '>', $at->getRawOriginal('created_at'))->orderBy('created_at')->limit(40)->get();
+            $messages = $q->where(fn ($query) => $query->where('created_at', '>', $at->getRawOriginal('created_at'))->orWhere(fn ($tie) => $tie->where('created_at', $at->getRawOriginal('created_at'))->where('id', '>', $at->id)))->orderBy('created_at')->orderBy('id')->limit(40)->get();
         } else {
-            $messages = $q->orderByDesc('created_at')->limit(40)->get()->reverse();
+            $messages = $q->orderByDesc('created_at')->orderByDesc('id')->limit(40)->get()->reverse()->values();
         }
         if ($messages->isEmpty()) {
             return response('', 204);
@@ -84,7 +87,13 @@ final class ChatController extends Controller
         $m = app(MessageWriter::class)->create($room, $r->user(), $r->hasFile('message.attachment') ? array_merge($a['message'], ['attachment' => $r->file('message.attachment')]) : $a['message'], true);
         $stream = app(ChatEvents::class)->created($m);
 
-        return $r->expectsJson() ? response()->json((new MessageResource($m))->resolve(new Request), 201) : response($stream, 200)->header('Content-Type', 'text/vnd.turbo-stream.html; charset=utf-8');
+        if ($r->expectsJson()) {
+            return response()->json((new MessageResource($m))->resolve(new Request), 201);
+        }
+
+        return config('campfire.json_message_stream')
+            ? redirect('/rooms/'.$room->id, 303)
+            : response($stream, 200)->header('Content-Type', 'text/vnd.turbo-stream.html; charset=utf-8');
     }
 
     public function update(Request $r, int $room, int $id)
@@ -103,7 +112,13 @@ final class ChatController extends Controller
         abort_unless($r->user()->canAdminister($m), 403);
         $s = app(ChatEvents::class)->delete($m);
 
-        return response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
+        if ($r->expectsJson()) {
+            return response()->noContent();
+        }
+
+        return config('campfire.json_message_stream')
+            ? redirect('/rooms/'.$room, 303)
+            : response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
     }
 
     public function sidebar(Request $r)
@@ -112,7 +127,9 @@ final class ChatController extends Controller
         $directs = $memberships->filter(fn ($m) => $m->room->type === 'Rooms::Direct')->sortByDesc(fn ($m) => $m->room->updated_at);
         $shared = $memberships->reject(fn ($m) => $m->room->type === 'Rooms::Direct')->sortBy(fn ($m) => mb_strtolower($m->room->name ?? ''));
 
-        return view('users.sidebar', compact('directs', 'shared'));
+        return config('campfire.json_message_stream')
+            ? view('users.stream_sidebar', compact('directs', 'shared'))
+            : view('users.sidebar', compact('directs', 'shared'));
     }
 
     public function search(Request $r)
@@ -147,6 +164,13 @@ final class ChatController extends Controller
         $since = CarbonImmutable::createFromTimestampMs((int) $r->input('since', 0));
         $new = $room->messages()->presentation()->where('created_at', '>', $since)->orderBy('created_at')->limit(40)->get();
         $updated = $room->messages()->presentation()->whereNotIn('id', $new->pluck('id'))->where('updated_at', '>', $since)->orderByDesc('created_at')->limit(40)->get()->reverse();
+
+        if ($r->expectsJson()) {
+            return response()->json($new->concat($updated)->unique('id')->sortBy('created_at')->values()->map(
+                fn (Message $message) => (new MessageResource($message))->resolve(new Request),
+            ));
+        }
+
         $s = '';
         foreach ($new as $m) {
             $s .= $this->stream('append', 'messages_room_'.$room->id, view('messages.message', ['message' => $m])->render());

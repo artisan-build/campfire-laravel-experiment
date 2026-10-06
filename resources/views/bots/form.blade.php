@@ -11,7 +11,7 @@
         <x-ui.button type="submit" variant="primary">Save changes</x-ui.button>
     </form>
     @if($bot)
-        <div class="mt-8 flex flex-col justify-between gap-3 border-t border-stone-200 pt-6 sm:flex-row dark:border-stone-700"><form action="/account/bots/{{ $bot->id }}" method="post">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-turbo-confirm="Are you sure you want to permanently remove this bot from the account? This can’t be undone.">Delete bot</x-ui.button></form><form action="/account/bots/{{ $bot->id }}/key" method="post">@csrf @method('PUT')<x-ui.button type="submit" variant="danger" data-turbo-confirm="Are you sure you want to change the bot key? All usage of this bot must be updated.">Generate new key</x-ui.button></form></div>
+        <div class="mt-8 flex flex-col justify-between gap-3 border-t border-stone-200 pt-6 sm:flex-row dark:border-stone-700"><form action="/account/bots/{{ $bot->id }}" method="post">@csrf @method('DELETE')<x-ui.button type="submit" variant="danger" data-confirm="Are you sure you want to permanently remove this bot from the account? This can’t be undone." data-turbo-confirm="Are you sure you want to permanently remove this bot from the account? This can’t be undone.">Delete bot</x-ui.button></form><form action="/account/bots/{{ $bot->id }}/key" method="post">@csrf @method('PUT')<x-ui.button type="submit" variant="danger" data-confirm="Are you sure you want to change the bot key? All usage of this bot must be updated." data-turbo-confirm="Are you sure you want to change the bot key? All usage of this bot must be updated.">Generate new key</x-ui.button></form></div>
     @endif
 </x-ui.panel>
 </div>

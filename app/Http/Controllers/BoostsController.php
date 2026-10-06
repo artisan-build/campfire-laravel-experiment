@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\MessageResource;
 use App\Models\Boost;
 use App\Models\Message;
 use App\Support\ChatEvents;
@@ -35,7 +36,9 @@ final class BoostsController extends Controller
         $boost = Boost::create(['message_id' => $id, 'booster_id' => $r->user()->id, 'content' => $r->input('boost.content')]);
         app(ChatEvents::class)->boostAdded($m, $boost);
 
-        return redirect('/messages/'.$id.'/boosts');
+        return $r->expectsJson()
+            ? response()->json(['message_id' => (int) $m->id, 'boost' => MessageResource::boostArray($boost)], 201)
+            : redirect('/messages/'.$id.'/boosts');
     }
 
     public function destroy(Request $r, int $id, int $boost)
@@ -45,6 +48,12 @@ final class BoostsController extends Controller
         abort_unless($r->user()->id === $b->booster_id, 403);
         $s = app(ChatEvents::class)->removeBoost($m, $b);
 
-        return response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
+        if ($r->expectsJson()) {
+            return response()->noContent();
+        }
+
+        return config('campfire.json_message_stream')
+            ? redirect('/rooms/'.$m->room_id, 303)
+            : response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
     }
 }

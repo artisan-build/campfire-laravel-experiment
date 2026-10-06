@@ -20,6 +20,12 @@ Alpine.data("appShell", () => ({
     this.$refs.lightbox.showModal()
   },
 
+  openLightboxUrl({ detail }) {
+    this.lightboxSource = detail.url
+    this.lightboxDownload = detail.download
+    this.$refs.lightbox.showModal()
+  },
+
   resetLightbox() {
     this.lightboxSource = ""
     this.lightboxDownload = ""

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Membership;
+use App\Models\Room;
 use App\Models\User;
 use App\Support\MessageWriter;
 use DOMDocument;
@@ -67,6 +68,7 @@ final class TailwindChromeTest extends TestCase
         $roomHtml = $this->get('/rooms/'.$room->id)->assertOk()->getContent();
         $profileHtml = $this->get('/users/me/profile')->assertOk()->getContent();
         $alpine = file_get_contents(public_path('assets/campfire/alpine.js'));
+        $messageStream = file_get_contents(public_path('assets/campfire/message_stream.js'));
         $application = file_get_contents(public_path('assets/campfire/application.js'));
         $importMap = json_decode(file_get_contents(resource_path('importmap.json')), true, flags: JSON_THROW_ON_ERROR)['imports'];
         $presentation = file_get_contents(resource_path('views/messages/presentation.blade.php'));
@@ -78,22 +80,35 @@ final class TailwindChromeTest extends TestCase
         $this->assertMatchesRegularExpression('/^Alpine\.start\(\)$/m', $alpine);
         $this->assertStringContainsString('x-data="appShell"', $roomHtml);
         $this->assertStringContainsString('@click="toggleSidebar()"', $roomHtml);
-        $this->assertStringContainsString('x-data="dropTarget"', $roomHtml);
-        $this->assertStringContainsString('@drop="drop($event)"', $roomHtml);
-        $this->assertStringContainsString('x-data="softKeyboard"', $roomHtml);
-        $this->assertStringContainsString('x-data="messagePopup"', $roomHtml);
-        $this->assertStringContainsString('@click.outside="close()"', $roomHtml);
-        $this->assertStringContainsString('clipboard(', $roomHtml);
+        $this->assertStringContainsString('x-data="messageStream(', $roomHtml);
+        $this->assertStringContainsString('@drop="dropFiles($event)"', $roomHtml);
+        $this->assertStringContainsString('@keydown="composerKeydown($event)"', $roomHtml);
+        $this->assertStringContainsString('@click="handleMessageAction($event); handleEditAction($event)"', $roomHtml);
+        $this->assertStringContainsString('data-stream-action="copy"', $roomHtml);
         $this->assertStringContainsString('/rooms/'.$room->id.'/@'.$message->id, $roomHtml);
         $this->assertStringContainsString('webShare(', $profileHtml);
         $this->assertStringContainsString('@click.prevent="openLightbox($el)"', $presentation);
 
         $this->assertStringContainsString('this.$refs.lightbox.showModal()', $alpine);
         $this->assertStringContainsString('navigator.clipboard.writeText(content)', $alpine);
-        $this->assertStringContainsString('this.$dispatch("campfire:drop", { files: event.dataTransfer.files })', $alpine);
+        $this->assertStringContainsString('dropFiles(event) {', $messageStream);
+        $this->assertStringContainsString('this.addFiles(event.dataTransfer.files)', $messageStream);
+        $this->assertStringContainsString('composerKeydown(event) {', $messageStream);
+        $this->assertStringContainsString('async handleMessageAction(event) {', $messageStream);
+        $this->assertStringContainsString('navigator.clipboard?.writeText(message.dataset.messageUrl)', $messageStream);
         $this->assertStringContainsString('this.$refs.menu.getBoundingClientRect()', $alpine);
         $this->assertStringContainsString('document.createElement("input")', $alpine);
         $this->assertStringContainsString('await navigator.share(data)', $alpine);
+
+        config(['campfire.json_message_stream' => false]);
+        $legacyRoomHtml = $this->get('/rooms/'.$room->id)->assertOk()->getContent();
+        $this->assertStringContainsString('x-data="dropTarget"', $legacyRoomHtml);
+        $this->assertStringContainsString('@drop="drop($event)"', $legacyRoomHtml);
+        $this->assertStringContainsString('x-data="softKeyboard"', $legacyRoomHtml);
+        $this->assertStringContainsString('x-data="messagePopup"', $legacyRoomHtml);
+        $this->assertStringContainsString('@click.outside="close()"', $legacyRoomHtml);
+        $this->assertStringContainsString('clipboard(', $legacyRoomHtml);
+        $this->assertStringContainsString('this.$dispatch("campfire:drop", { files: event.dataTransfer.files })', $alpine);
     }
 
     public function test_mobile_sidebar_translation_is_owned_by_the_alpine_state(): void
@@ -116,6 +131,52 @@ final class TailwindChromeTest extends TestCase
         $this->assertSame("sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'", $sidebar->attributes->getNamedItem(':class')?->nodeValue);
     }
 
+    public function test_json_room_and_rollback_keep_the_composer_inside_the_layout_shell(): void
+    {
+        [$user, $room] = $this->fixture();
+        $this->auth($user);
+
+        $document = $this->document($this->get('/rooms/'.$room->id)->assertOk());
+        $xpath = new DOMXPath($document);
+        $body = $xpath->query('//body')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $body);
+        $this->assertNotContains('sidebar', preg_split('/\s+/', $body->getAttribute('class')));
+        $this->assertCount(1, $xpath->query('//main[@id="main-content"]//form[@data-testid="room-json-composer"]'));
+        $this->assertCount(1, $xpath->query('//main[@id="main-content"]/footer[@id="footer"]'));
+        $this->assertCount(1, $xpath->query('//main[@id="main-content"]/following-sibling::aside[@id="sidebar"]'));
+
+        config(['campfire.json_message_stream' => false]);
+        $legacyResponse = $this->get('/rooms/'.$room->id)->assertOk();
+        $legacyXPath = new DOMXPath($this->document($legacyResponse));
+        $legacyBody = $legacyXPath->query('//body')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $legacyBody);
+        $this->assertContains('sidebar', preg_split('/\s+/', $legacyBody->getAttribute('class')));
+        // Older Linux libxml builds relocate nodes around the unknown
+        // <turbo-frame> custom element, so prove the whole legacy layout shell
+        // with raw HTML boundaries and ordering instead of parser-dependent
+        // DOM ancestor/sibling chains.
+        $legacyHtml = $legacyResponse->getContent();
+        $mainOpen = strpos($legacyHtml, '<main id="main-content"');
+        $footer = strpos($legacyHtml, '<footer id="footer"');
+        $composerForm = strpos($legacyHtml, '<form id="composer"');
+        $mainClose = strpos($legacyHtml, '</main>');
+        $sidebar = strpos($legacyHtml, '<aside id="sidebar"');
+        $this->assertNotFalse($mainOpen);
+        $this->assertNotFalse($footer);
+        $this->assertNotFalse($composerForm);
+        $this->assertNotFalse($mainClose);
+        $this->assertNotFalse($sidebar);
+        $this->assertGreaterThan($mainOpen, $footer);
+        $this->assertGreaterThan($footer, $composerForm);
+        $this->assertGreaterThan($composerForm, $mainClose);
+        $this->assertGreaterThan($mainClose, $sidebar);
+        $this->assertSame(1, substr_count($legacyHtml, '<main id="main-content"'));
+        $this->assertSame(1, substr_count($legacyHtml, '<footer id="footer"'));
+        $this->assertSame(1, substr_count($legacyHtml, '<form id="composer"'));
+        $this->assertSame(1, substr_count($legacyHtml, '</main>'));
+        $this->assertSame(1, substr_count($legacyHtml, '<aside id="sidebar"'));
+    }
+
     public function test_retained_local_time_controller_owns_existing_and_optimistic_timestamps(): void
     {
         [$user, $room] = $this->fixture();
@@ -123,18 +184,17 @@ final class TailwindChromeTest extends TestCase
         $this->auth($user);
 
         $response = $this->get('/rooms/'.$room->id)->assertOk();
-        $html = $response->getContent();
         $document = $this->document($response);
         $xpath = new DOMXPath($document);
-        $controllers = $xpath->query('//*[@data-controller and contains(concat(" ", normalize-space(@data-controller), " "), " local-time ")]');
+        $owners = $xpath->query('//*[@data-testid="app-content" and contains(@x-data, "messageStream(")]');
 
-        $this->assertNotFalse($controllers);
-        $this->assertCount(1, $controllers);
-        $controller = $controllers->item(0);
-        $this->assertInstanceOf(DOMElement::class, $controller);
+        $this->assertNotFalse($owners);
+        $this->assertCount(1, $owners);
+        $owner = $owners->item(0);
+        $this->assertInstanceOf(DOMElement::class, $owner);
 
-        $existing = $xpath->query('.//*[@id="message_'.$message->client_message_id.'"]//*[@data-local-time-target="date" or @data-local-time-target="time"]', $controller);
-        $templates = $xpath->query('.//script[@data-messages-target="template"]', $controller);
+        $existing = $xpath->query('.//*[@id="message_'.$message->client_message_id.'"]//*[@data-stream-time="date" or @data-stream-time="time"]', $owner);
+        $templates = $xpath->query('.//template[@data-testid="room-message-template"]', $owner);
         $this->assertNotFalse($existing);
         $this->assertCount(2, $existing);
         $this->assertNotFalse($templates);
@@ -142,10 +202,15 @@ final class TailwindChromeTest extends TestCase
 
         $template = $templates->item(0);
         $this->assertNotNull($template);
+        $templateTimes = $xpath->query('.//*[@data-stream-time="date" or @data-stream-time="time"]', $template);
+        $this->assertNotFalse($templateTimes);
+        $this->assertCount(2, $templateTimes);
 
-        $this->assertSame(1, preg_match_all('/<script\b(?=[^>]*\btype="text\/template")(?=[^>]*\bdata-messages-target="template")[^>]*>(?<body>.*?)<\/script>/is', $html, $rawTemplates));
-        $this->assertSame(1, substr_count($rawTemplates['body'][0], 'data-local-time-target="date"'));
-        $this->assertSame(1, substr_count($rawTemplates['body'][0], 'data-local-time-target="time"'));
+        $messageStream = file_get_contents(public_path('assets/campfire/message_stream.js'));
+        $this->assertStringContainsString('this.formatMessages()', $messageStream);
+        $this->assertStringContainsString('message.querySelector("[data-stream-time=date]")', $messageStream);
+        $this->assertStringContainsString('message.querySelector("[data-stream-time=time]")', $messageStream);
+        $this->assertStringNotContainsString('data-controller="local-time"', $response->getContent());
     }
 
     public function test_account_bots_navigation_is_visible_without_a_breakpoint(): void
@@ -180,26 +245,34 @@ final class TailwindChromeTest extends TestCase
     public function test_unread_room_contract_uses_one_visible_class_token(): void
     {
         [$user, $room] = $this->fixture();
+        $unreadRoom = Room::create(['name' => 'Unread Contract Room', 'type' => 'Rooms::Open', 'creator_id' => $user->id]);
+        Membership::create([
+            'room_id' => $unreadRoom->id,
+            'user_id' => $user->id,
+            'involvement' => 'mentions',
+            'unread_at' => now(),
+        ]);
         $this->auth($user);
 
-        $roomDocument = $this->document($this->get('/rooms/'.$room->id)->assertOk());
-        $roomLists = (new DOMXPath($roomDocument))->query('//*[@data-rooms-list-unread-class="unread"]');
-        $this->assertNotFalse($roomLists);
-        $this->assertCount(1, $roomLists);
-
-        Membership::query()->whereBelongsTo($user)->whereBelongsTo($room)->update(['unread_at' => now()]);
-        $sidebarDocument = $this->document($this->get('/users/me/sidebar')->assertOk());
-        $sidebar = new DOMXPath($sidebarDocument);
-        $badges = $sidebar->query('//*[@data-badge-dot-unread-class="unread"]');
-        $links = $sidebar->query('//*[@data-room-id="'.$room->id.'" and @data-rooms-list-target="room" and @data-badge-dot-target="unread"]');
-        $this->assertNotFalse($badges);
-        $this->assertCount(1, $badges);
+        $roomResponse = $this->get('/rooms/'.$room->id)->assertOk();
+        $roomDocument = $this->document($roomResponse);
+        $roomPage = new DOMXPath($roomDocument);
+        $owners = $roomPage->query('//*[@data-testid="app-content" and contains(@x-data, "messageStream(")]');
+        $links = $roomPage->query('//*[@data-testid="sidebar-rooms"]//*[@data-room-id="'.$unreadRoom->id.'"]');
+        $this->assertNotFalse($owners);
+        $this->assertCount(1, $owners);
         $this->assertNotFalse($links);
         $this->assertCount(1, $links);
 
         $link = $links->item(0);
         $this->assertInstanceOf(DOMElement::class, $link);
         $this->assertContains('unread', preg_split('/\s+/', $link->getAttribute('class')));
+
+        $messageStream = file_get_contents(public_path('assets/campfire/message_stream.js'));
+        $this->assertStringContainsString('setRoomUnread(roomId, unread) {', $messageStream);
+        $this->assertStringContainsString('room.classList.toggle("unread", unread)', $messageStream);
+        $this->assertStringContainsString('document.querySelectorAll("[data-room-id].unread")', $messageStream);
+        $this->assertStringNotContainsString('data-rooms-list-unread-class', $roomResponse->getContent());
 
         $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true, flags: JSON_THROW_ON_ERROR);
         $css = file_get_contents(public_path('assets/'.$manifest['app.css']));

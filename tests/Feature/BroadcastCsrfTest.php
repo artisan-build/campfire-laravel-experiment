@@ -36,6 +36,7 @@ final class BroadcastCsrfTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['campfire.json_message_stream' => false]);
         Queue::fake();
         $this->forget();
         foreach ([TurboStreamBroadcast::class, MessagePosted::class, MessageUpdated::class, MessageDeleted::class, BoostAdded::class, BoostRemoved::class, RoomUnread::class, RoomRead::class, TypingNotification::class] as $event) {

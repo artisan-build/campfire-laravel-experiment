@@ -1,4 +1,4 @@
-<div id="presentation_message_{{ $message->client_message_id }}" dir="auto" data-reply-target="body" data-messages-target="body">@if($message->attachment?->blob)
+<div id="presentation_message_{{ $message->client_message_id }}" dir="auto" data-reply-target="body" data-messages-target="body" @if($stream ?? false) data-stream-part="presentation" @endif>@if($message->attachment?->blob)
 @php($blob = $message->attachment->blob)
 @php($storage = app(\App\Support\BlobStorage::class))
 @php($url = $storage->url($blob))

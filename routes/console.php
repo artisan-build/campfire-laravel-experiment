@@ -66,7 +66,9 @@ Artisan::command('campfire:provision-ffmpeg {--force}', function (): int {
  * credential, so it is safe to run anywhere and paste the output.
  */
 Artisan::command('campfire:doctor {--queue : Also report what a QUEUE WORKER resolved, which on Cloud is a different host}', function () {
-    $broadcastEncoding = TurboStreamBroadcast::encoding();
+    $broadcastEncoding = config('campfire.json_message_stream')
+        ? ['format' => 'message-resource-json', 'variants' => ['complete', 'fetch-required']]
+        : TurboStreamBroadcast::encoding();
     $rows = [
         ['instance', gethostname()],
         ['php', PHP_VERSION],

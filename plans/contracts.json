@@ -1,7 +1,7 @@
 {
   "reference_revision": "659f95748a115a360a37db9bf80a5361a560e14f",
   "runtime": "Laravel 13 / PHP 8.4",
-  "ui_bar": "interactive Rails frontend; byte parity not yet established",
+  "ui_bar": "Laravel-native Alpine message stream active; live browser parity pending",
   "contracts": {
     "schema": {
       "status": "pending"
@@ -21,15 +21,19 @@
       "evidence": "Native access/DM privacy tests and independent browser creation, direct picker, open/closed conversion, membership add/revoke and deletion all pass."
     },
     "messages": {
-      "status": "verified",
-      "evidence": "Real create/update/delete, FTS, unreads, commit/rollback notification behavior verified in PHPUnit and independent HTTP."
+      "status": "partially_verified",
+      "evidence": "Real create/update/delete, FTS, unreads, commit/rollback notification behavior was verified before the frontend cutover. PR5 focused tests cover explicit JSON HTTP resources, canonical editable rich text, authoritative reconnect snapshots, optimistic markers, stable pagination ordering and isolated JSON event dispatch; branch-head browser verification remains pending."
+    },
+    "json_message_stream": {
+      "status": "partially_verified",
+      "evidence": "Focused PHPUnit verifies the active Alpine/Echo bootstrap, five-event wiring, first-connect/reconnect authoritative snapshot ownership, canonical editable rich text, JSON mutation status/error contracts, server-rendered history, resource schema floor, attachment variants, authorization, transitive default/fallback asset closure and rollback isolation. The committed tests/Browser/pr5-json-stream.mjs harness is syntax/contract checked; its two-user browser and managed-Reverb frame runs remain pending."
     },
     "richtext": {
       "status": "pending"
     },
     "sidebar": {
       "status": "partially_verified",
-      "evidence": "Independent populated sidebar and browser room mutations pass; native signed global/own-user streams and afterCommit member-specific replacement implemented. Cross-tab sidebar delivery oracle pending."
+      "evidence": "Pre-cutover populated-sidebar browser checks pass. The default path now emits a small private sidebar.changed JSON signal after commit and fetches authoritative static sidebar HTML; the fallback retains member-specific Turbo replacement. Default cross-tab delivery remains pending in the PR5 browser harness."
     },
     "search": {
       "status": "verified",
@@ -60,7 +64,7 @@
     },
     "websockets": {
       "status": "partially_verified",
-      "evidence": "Independent live sockets reject forged/private streams and stop publication after logout. Native six browser subscriptions, sidebar updates and presence actions implemented. Sustained multi-tab socket oracle pending."
+      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room/sidebar subscriptions and payload confidentiality are focused-test verified; managed-Reverb capture for all five mutation families and sustained multi-tab behavior remain pending."
     },
     "presence": {
       "status": "partially_verified",
@@ -92,8 +96,8 @@
       "status": "pending"
     },
     "browser": {
-      "status": "verified",
-      "evidence": "Independent real-browser workflows: compose, mention, pagination/edit/delete, boost, image upload/lightbox, search, private/direct rooms; administration and first-run setup. 26 assertions passed, no JS errors."
+      "status": "partially_verified",
+      "evidence": "Twenty-six independent browser assertions passed on the pre-PR5 frontend. They do not verify the replacement JSON/Alpine stream. The committed PR5 two-context harness is pending branch-head and post-merge execution."
     },
     "benchmarks": {
       "status": "verified",
@@ -105,7 +109,7 @@
     "independent_http": "18 checks passed",
     "independent_cable_security": "3 checks passed",
     "claude": "Requirements/architecture reviewed; source export blocked by automatic approval review.",
-    "browser": "26 assertions passed without JavaScript errors: 10 core, 12 administration, 4 isolated fresh setup",
+    "browser": "26 pre-PR5 assertions passed without JavaScript errors; replacement JSON-stream harness pending",
     "concurrent_native_writes": "Four independent PHP applications each create eight messages while holding membership reads 20ms: 32 messages and 32 FTS rows persisted. Independent production FPM 16-client write tests completed twice without failed requests.",
     "pending_socket_admission": "Real TCP regression covers pending admission, deadline and authenticated revocation. Independent production retest admits all 100 connections and delivers all 30 paced messages to every socket in both fresh runs.",
     "benchmark_provenance": "HTTP runtime 112a66f; socket runtime 87b332b. Diff contains only socket admission code, its tests and ledger; all measured HTTP paths unchanged. Production image runtime hashes independently verified."
