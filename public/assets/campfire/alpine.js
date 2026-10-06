@@ -121,7 +121,8 @@ Alpine.data("pushSubscriptions", wire => ({
     this.error = ""
     try {
       if (!("serviceWorker" in navigator) || !("Notification" in window)) throw new Error("Notifications are not supported on this device.")
-      const registration = await navigator.serviceWorker.getRegistration(window.location.origin) || await navigator.serviceWorker.register("/service-worker")
+      let registration = await navigator.serviceWorker.getRegistration(window.location.origin) || await navigator.serviceWorker.register("/service-worker")
+      if (!registration.active) registration = await navigator.serviceWorker.ready
       const permission = await Notification.requestPermission()
       if (permission !== "granted") throw new Error("Notification permission was not granted.")
       const key = document.querySelector('meta[name="vapid-public-key"]')?.content

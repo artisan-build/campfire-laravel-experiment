@@ -27,6 +27,18 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('Transfer-id substitution did not fail loudly', $source);
         $this->assertStringContainsString('Cross-user push removal did not fail loudly', $source);
         $this->assertStringContainsString('Console problems:', $source);
+        $this->assertStringContainsString('const expectedNegativeEvidence = []', $source);
+        $this->assertStringContainsString('activeNegativeControls.set(page, expectation)', $source);
+        $this->assertStringContainsString('status === expectation.status', $source);
+        $this->assertStringContainsString('expectation.matchesPath(sourcePath)', $source);
+        $this->assertStringContainsString('expected_negative_evidence: expectedNegativeEvidence', $source);
+        $this->assertStringContainsString('name: "join-code locked-property substitution"', $source);
+        $this->assertStringContainsString('name: "non-admin bot access"', $source);
+        $this->assertStringContainsString('name: "cross-user push removal"', $source);
+        $this->assertStringContainsString('name: "transfer-id locked-property substitution"', $source);
+        $this->assertSame(2, substr_count($source, 'status: 500'));
+        $this->assertSame(1, substr_count($source, 'status: 403'));
+        $this->assertSame(1, substr_count($source, 'status: 404'));
         $this->assertStringContainsString('writeFileSync(outputPath', $source);
         $this->assertStringContainsString('process.exitCode = 1', $source);
         $this->assertStringNotContainsString('setInterval', $source);

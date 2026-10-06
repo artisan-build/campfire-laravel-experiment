@@ -16,10 +16,22 @@ const memberEmail = process.env.PR8_MEMBER_EMAIL || `pr8-${runId}@example.test`
 const memberPassword = process.env.PR8_MEMBER_PASSWORD || `Pr8-${runId}-password`
 const states = []
 const consoleProblems = []
+const expectedNegativeEvidence = []
+const activeNegativeControls = new Map()
 
 function watchConsole(page, label) {
   page.on("console", message => {
-    if (message.type() === "error") consoleProblems.push({ label, type: message.type(), text: message.text(), url: page.url() })
+    if (message.type() !== "error") return
+
+    const detail = { label, type: message.type(), text: message.text(), url: page.url(), source: message.location().url }
+    const expectation = activeNegativeControls.get(page)
+    const status = Number(message.text().match(/status of (\d{3})/)?.[1])
+    const sourcePath = detail.source ? new URL(detail.source).pathname : ""
+    if (expectation && status === expectation.status && (!sourcePath || expectation.matchesPath(sourcePath))) {
+      expectedNegativeEvidence.push({ ...detail, control: expectation.name, status })
+    } else {
+      consoleProblems.push(detail)
+    }
   })
   page.on("pageerror", error => consoleProblems.push({ label, type: "pageerror", text: error.message, url: page.url() }))
 }
@@ -27,6 +39,30 @@ function watchConsole(page, label) {
 async function step(name, operation) {
   await operation()
   states.push({ name, at: new Date().toISOString() })
+}
+
+async function expectNegativeControl(page, expectation, operation) {
+  activeNegativeControls.set(page, expectation)
+  try {
+    const responsePromise = page.waitForResponse(response => {
+      const pathname = new URL(response.url()).pathname
+      return response.request().method() === expectation.method && expectation.matchesPath(pathname)
+    })
+    const [ result, response ] = await Promise.all([ operation(), responsePromise ])
+    if (response.status() !== expectation.status) {
+      throw new Error(`${expectation.name} returned ${response.status()}, expected ${expectation.status}`)
+    }
+    expectedNegativeEvidence.push({
+      control: expectation.name,
+      type: "response",
+      method: expectation.method,
+      status: response.status(),
+      path: new URL(response.url()).pathname,
+    })
+    return result
+  } finally {
+    activeNegativeControls.delete(page)
+  }
 }
 
 async function login(page, email, password) {
@@ -134,10 +170,15 @@ try {
 
   await step("join signup with locked credential negative", async () => {
     await member.goto(`${baseUrl}/join/${process.env.PR8_JOIN_CODE}`)
-    const rejected = await member.getByTestId("auth-sign-up").evaluate(async element => {
+    const rejected = await expectNegativeControl(member, {
+      name: "join-code locked-property substitution",
+      method: "POST",
+      status: 500,
+      matchesPath: pathname => pathname.endsWith("/update"),
+    }, () => member.getByTestId("auth-sign-up").evaluate(async element => {
       const wire = window.Livewire.find(element.closest("[wire\\:id]").getAttribute("wire:id"))
       try { await wire.$set("joinCode", "substituted-code"); return false } catch { return true }
-    })
+    }))
     if (!rejected) throw new Error("Join-code substitution did not fail loudly")
     await member.goto(`${baseUrl}/join/${process.env.PR8_JOIN_CODE}`)
     const form = member.getByTestId("sign-up-form")
@@ -148,8 +189,12 @@ try {
   })
 
   await step("non admin bot access denied", async () => {
-    const response = await member.goto(`${baseUrl}/account/bots`)
-    if (response?.status() !== 403) throw new Error(`Non-admin bot access returned ${response?.status()}`)
+    await expectNegativeControl(member, {
+      name: "non-admin bot access",
+      method: "GET",
+      status: 403,
+      matchesPath: pathname => pathname === "/account/bots",
+    }, () => member.goto(`${baseUrl}/account/bots`))
   })
 
   await step("push registration test and cross-user protection", async () => {
@@ -164,10 +209,15 @@ try {
     await admin.goto(`${baseUrl}/users/me/push_subscriptions`)
     await admin.getByRole("button", { name: "Enable notifications on this device" }).click()
     await admin.getByTestId("push-subscription-row").first().waitFor()
-    const rejected = await admin.getByTestId("settings-notifications").evaluate(async (element, id) => {
+    const rejected = await expectNegativeControl(admin, {
+      name: "cross-user push removal",
+      method: "POST",
+      status: 404,
+      matchesPath: pathname => pathname.endsWith("/update"),
+    }, () => admin.getByTestId("settings-notifications").evaluate(async (element, id) => {
       const wire = window.Livewire.find(element.closest("[wire\\:id]").getAttribute("wire:id"))
       try { await wire.remove(id); return false } catch { return true }
-    }, memberSubscriptionId)
+    }, memberSubscriptionId))
     if (!rejected) throw new Error("Cross-user push removal did not fail loudly")
     await member.reload()
     await member.getByTestId("push-subscription-row").waitFor()
@@ -179,10 +229,15 @@ try {
     await admin.goto(`${baseUrl}/users/me/profile`)
     const transferUrl = decodeTransferUrl(await admin.getByRole("link", { name: "Show QR code" }).getAttribute("href"))
     await transfer.goto(transferUrl)
-    const rejected = await transfer.getByTestId("auth-transfer").evaluate(async element => {
+    const rejected = await expectNegativeControl(transfer, {
+      name: "transfer-id locked-property substitution",
+      method: "POST",
+      status: 500,
+      matchesPath: pathname => pathname.endsWith("/update"),
+    }, () => transfer.getByTestId("auth-transfer").evaluate(async element => {
       const wire = window.Livewire.find(element.closest("[wire\\:id]").getAttribute("wire:id"))
       try { await wire.$set("transferId", "substituted-transfer"); return false } catch { return true }
-    })
+    }))
     if (!rejected) throw new Error("Transfer-id substitution did not fail loudly")
     await transfer.goto(transferUrl)
     await Promise.all([ transfer.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname)), transfer.getByTestId("transfer-form").getByRole("button", { name: "Sign in" }).click() ])
@@ -203,10 +258,10 @@ try {
 
   if (consoleProblems.length) throw new Error(`Console problems: ${JSON.stringify(consoleProblems)}`)
   mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, JSON.stringify({ ok: true, run_id: runId, states, console_problems: consoleProblems }, null, 2))
+  writeFileSync(outputPath, JSON.stringify({ ok: true, run_id: runId, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems }, null, 2))
 } catch (error) {
   mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, JSON.stringify({ ok: false, run_id: runId, states, console_problems: consoleProblems, error: error.message }, null, 2))
+  writeFileSync(outputPath, JSON.stringify({ ok: false, run_id: runId, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems, error: error.message }, null, 2))
   process.exitCode = 1
 } finally {
   await browser.close()
