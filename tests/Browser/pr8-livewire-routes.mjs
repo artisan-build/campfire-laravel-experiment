@@ -23,6 +23,7 @@ const states = []
 const consoleProblems = []
 const expectedNegativeEvidence = []
 const activeNegativeControls = new Map()
+const navigationOptions = { waitUntil: "commit" }
 
 function watchConsole(page, label) {
   page.on("console", message => {
@@ -75,7 +76,7 @@ async function login(page, email, password) {
   const form = page.getByTestId("sign-in-form")
   await form.locator('input[type="email"]').fill(email)
   await form.locator('input[type="password"]').fill(password)
-  await Promise.all([ page.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname)), form.getByRole("button", { name: "Sign in" }).click() ])
+  await Promise.all([ page.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname), navigationOptions), form.getByRole("button", { name: "Sign in" }).click() ])
 }
 
 async function waitForNotification(page) {
@@ -118,7 +119,7 @@ try {
     await form.getByLabel("Bot name").fill(`PR8 Bot ${runId}`)
     await form.getByLabel("Webhook URL").fill("https://example.test/pr8-hook")
     await form.locator('input[type="file"]').setInputFiles({ name: "pr8-avatar.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") })
-    await Promise.all([ admin.waitForURL(`${baseUrl}/account/bots`), form.getByRole("button", { name: "Save changes" }).click() ])
+    await Promise.all([ admin.waitForURL(`${baseUrl}/account/bots`, navigationOptions), form.getByRole("button", { name: "Save changes" }).click() ])
     const row = admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot ${runId}` })
     if (!(await row.locator("img").getAttribute("src")).includes("/users/")) throw new Error("Bot avatar upload did not persist")
     botApiUrl = await row.locator('input[aria-label="curl command for posting messages"]').inputValue().then(command => command.replace(/^curl -d 'Hello!' /, ""))
@@ -157,12 +158,12 @@ try {
     await admin.goto(`${baseUrl}/account/bots`)
     const row = admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot ${runId}` })
     await Promise.all([
-      admin.waitForURL(url => /^\/account\/bots\/\d+\/edit$/.test(url.pathname)),
+      admin.waitForURL(url => /^\/account\/bots\/\d+\/edit$/.test(url.pathname), navigationOptions),
       row.getByRole("link", { name: "Edit" }).click(),
     ])
     const form = admin.getByTestId("bot-form")
     await form.getByLabel("Bot name").fill(`PR8 Bot Edited ${runId}`)
-    await Promise.all([ admin.waitForURL(`${baseUrl}/account/bots`), form.getByRole("button", { name: "Save changes" }).click() ])
+    await Promise.all([ admin.waitForURL(`${baseUrl}/account/bots`, navigationOptions), form.getByRole("button", { name: "Save changes" }).click() ])
     const editedRow = admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot Edited ${runId}` })
     await editedRow.waitFor()
     await Promise.all([
@@ -190,7 +191,7 @@ try {
     await form.getByLabel("Your name").fill(`PR8 Member ${runId}`)
     await form.getByLabel("Email address").fill(memberEmail)
     await form.getByLabel("Password").fill(memberPassword)
-    await Promise.all([ member.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname)), form.getByRole("button", { name: "Create account" }).click() ])
+    await Promise.all([ member.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname), navigationOptions), form.getByRole("button", { name: "Create account" }).click() ])
   })
 
   await step("non admin bot access denied", async () => {
@@ -245,12 +246,12 @@ try {
     }))
     if (!rejected) throw new Error("Transfer-id substitution did not fail loudly")
     await transfer.goto(transferUrl)
-    await Promise.all([ transfer.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname)), transfer.getByTestId("transfer-form").getByRole("button", { name: "Sign in" }).click() ])
+    await Promise.all([ transfer.waitForURL(url => url.pathname === "/" || /^\/rooms\/\d+$/.test(url.pathname), navigationOptions), transfer.getByTestId("transfer-form").getByRole("button", { name: "Sign in" }).click() ])
   })
 
   await step("logout unsubscribe and login again", async () => {
     await admin.goto(`${baseUrl}/users/me/profile`)
-    await Promise.all([ admin.waitForURL(`${baseUrl}/session/new`), admin.getByRole("button", { name: "Log out" }).click() ])
+    await Promise.all([ admin.waitForURL(`${baseUrl}/session/new`, navigationOptions), admin.getByRole("button", { name: "Log out" }).click() ])
     await login(admin, process.env.PR8_ADMIN_EMAIL, process.env.PR8_ADMIN_PASSWORD)
   })
 
