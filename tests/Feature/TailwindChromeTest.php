@@ -151,17 +151,30 @@ final class TailwindChromeTest extends TestCase
         $legacyBody = $legacyXPath->query('//body')->item(0);
         $this->assertInstanceOf(DOMElement::class, $legacyBody);
         $this->assertContains('sidebar', preg_split('/\s+/', $legacyBody->getAttribute('class')));
-        // Older Linux libxml builds do not reliably nest the form under the unknown
-        // <turbo-frame> custom element, so assert the layout-shell boundary on the raw
-        // HTML rather than through a parser-dependent DOM descendant chain.
+        // Older Linux libxml builds relocate nodes around the unknown
+        // <turbo-frame> custom element, so prove the whole legacy layout shell
+        // with raw HTML boundaries and ordering instead of parser-dependent
+        // DOM ancestor/sibling chains.
         $legacyHtml = $legacyResponse->getContent();
+        $mainOpen = strpos($legacyHtml, '<main id="main-content"');
+        $footer = strpos($legacyHtml, '<footer id="footer"');
         $composerForm = strpos($legacyHtml, '<form id="composer"');
+        $mainClose = strpos($legacyHtml, '</main>');
+        $sidebar = strpos($legacyHtml, '<aside id="sidebar"');
+        $this->assertNotFalse($mainOpen);
+        $this->assertNotFalse($footer);
         $this->assertNotFalse($composerForm);
+        $this->assertNotFalse($mainClose);
+        $this->assertNotFalse($sidebar);
+        $this->assertGreaterThan($mainOpen, $footer);
+        $this->assertGreaterThan($footer, $composerForm);
+        $this->assertGreaterThan($composerForm, $mainClose);
+        $this->assertGreaterThan($mainClose, $sidebar);
+        $this->assertSame(1, substr_count($legacyHtml, '<main id="main-content"'));
+        $this->assertSame(1, substr_count($legacyHtml, '<footer id="footer"'));
         $this->assertSame(1, substr_count($legacyHtml, '<form id="composer"'));
-        $this->assertStringContainsString('<main id="main-content"', substr($legacyHtml, 0, $composerForm));
-        $this->assertStringContainsString('</main>', substr($legacyHtml, $composerForm));
-        $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]/footer[@id="footer"]'));
-        $this->assertCount(1, $legacyXPath->query('//main[@id="main-content"]/following-sibling::aside[@id="sidebar"]'));
+        $this->assertSame(1, substr_count($legacyHtml, '</main>'));
+        $this->assertSame(1, substr_count($legacyHtml, '<aside id="sidebar"'));
     }
 
     public function test_retained_local_time_controller_owns_existing_and_optimistic_timestamps(): void
