@@ -12,6 +12,11 @@ const required = [ "PR8_ADMIN_EMAIL", "PR8_ADMIN_PASSWORD", "PR8_JOIN_CODE" ]
 for (const name of required) if (!process.env[name]) throw new Error(`Missing ${name}`)
 
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const profileRoot = resolve(process.env.PR8_PROFILE_ROOT || "tmp/pr8-livewire-routes/profiles", runId)
+const launchOptions = {
+  headless: process.env.PR8_HEADLESS !== "false",
+  executablePath: process.env.PR8_BROWSER_EXECUTABLE || undefined,
+}
 const memberEmail = process.env.PR8_MEMBER_EMAIL || `pr8-${runId}@example.test`
 const memberPassword = process.env.PR8_MEMBER_PASSWORD || `Pr8-${runId}-password`
 const states = []
@@ -91,13 +96,13 @@ function decodeTransferUrl(qrHref) {
   return Buffer.from(encoded.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
 }
 
-const browser = await chromium.launch({ headless: true, executablePath: process.env.PR8_BROWSER_EXECUTABLE || undefined })
-const adminContext = await browser.newContext({ permissions: [ "notifications" ] })
-const memberContext = await browser.newContext({ permissions: [ "notifications" ] })
-const transferContext = await browser.newContext()
-const admin = await adminContext.newPage()
-const member = await memberContext.newPage()
-const transfer = await transferContext.newPage()
+mkdirSync(profileRoot, { recursive: true })
+const adminContext = await chromium.launchPersistentContext(resolve(profileRoot, "admin"), { ...launchOptions, permissions: [ "notifications" ] })
+const memberContext = await chromium.launchPersistentContext(resolve(profileRoot, "member"), { ...launchOptions, permissions: [ "notifications" ] })
+const transferContext = await chromium.launchPersistentContext(resolve(profileRoot, "transfer"), launchOptions)
+const admin = adminContext.pages()[0] || await adminContext.newPage()
+const member = memberContext.pages()[0] || await memberContext.newPage()
+const transfer = transferContext.pages()[0] || await transferContext.newPage()
 for (const [ page, label ] of [[admin, "admin"], [member, "member"], [transfer, "transfer"]]) watchConsole(page, label)
 admin.on("dialog", dialog => dialog.accept())
 
@@ -264,5 +269,5 @@ try {
   writeFileSync(outputPath, JSON.stringify({ ok: false, run_id: runId, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems, error: error.message }, null, 2))
   process.exitCode = 1
 } finally {
-  await browser.close()
+  await Promise.all([ adminContext.close(), memberContext.close(), transferContext.close() ])
 }
