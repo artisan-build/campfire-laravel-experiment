@@ -80,7 +80,7 @@
     },
     "webhooks": {
       "status": "verified",
-      "evidence": "Independent local HTTP receiver verifies actual queued delivery and persisted native bot reply; PHPUnit verifies no callback loop. PR8 uses one save-time/send-time public-address policy and a real Guzzle cURL-handler test to prove the connection pin, redirect refusal and unknown-length 20 MiB ceiling; seven semantic security mutations turned the focused tests red."
+      "evidence": "Independent local HTTP receiver verifies actual queued delivery and persisted native bot reply; PHPUnit verifies no callback loop. PR8 uses one save-time/send-time globally routable public-unicast policy and a real Guzzle cURL-handler test to prove the connection pin, redirect refusal and unknown-length 20 MiB ceiling. Semantic removals of the IPv4 exclusions, IPv6 global-range guard, IPv6 special-purpose exclusions and 6to4 transition guard each turned the focused policy test red, supplementing the seven transport mutations."
     },
     "unfurl": {
       "status": "pending"
