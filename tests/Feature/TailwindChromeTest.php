@@ -75,9 +75,11 @@ final class TailwindChromeTest extends TestCase
 
         $this->assertSame(1, preg_match('/import "(?<module>campfire\/alpine)"/', $application, $applicationImport));
         $this->assertSame('ASSET:campfire/alpine.js', $importMap[$applicationImport['module']] ?? null);
-        $this->assertSame(1, preg_match('/import Alpine from "(?<module>[^"]+)"/', $alpine, $alpineImport));
-        $this->assertArrayHasKey($alpineImport['module'], $importMap);
-        $this->assertMatchesRegularExpression('/^Alpine\.start\(\)$/m', $alpine);
+        $this->assertArrayNotHasKey('alpinejs', $importMap);
+        $this->assertStringNotContainsString('import Alpine', $alpine);
+        $this->assertStringNotContainsString('Alpine.start()', $alpine);
+        $this->assertStringContainsString('document.addEventListener("livewire:init"', $alpine);
+        $this->assertStringContainsString('window.Livewire.start()', $application);
         $this->assertStringContainsString('x-data="appShell"', $roomHtml);
         $this->assertStringContainsString('@click="toggleSidebar()"', $roomHtml);
         $this->assertStringContainsString('x-data="messageStream(', $roomHtml);
