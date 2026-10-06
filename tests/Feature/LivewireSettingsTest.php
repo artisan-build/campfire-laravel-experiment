@@ -44,6 +44,19 @@ final class LivewireSettingsTest extends TestCase
         Livewire::actingAs($member)->test(RoomForm::class, ['kind' => 'closeds', 'room' => $room->fresh()])->assertStatus(403);
     }
 
+    public function test_room_form_delete_without_a_room_aborts_without_mutating_data(): void
+    {
+        [$owner, $room] = $this->fixture();
+
+        Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens'])
+            ->call('delete')
+            ->assertStatus(404);
+
+        $this->assertDatabaseHas('rooms', ['id' => $room->id]);
+        $this->assertDatabaseCount('rooms', 1);
+        $this->assertDatabaseCount('memberships', 1);
+    }
+
     public function test_room_settings_component_uses_room_view_policy(): void
     {
         [$owner, $room] = $this->fixture();

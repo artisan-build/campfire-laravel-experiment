@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Enums\RoomKind;
 use App\Models\Membership;
 use App\Models\Room;
 use App\Models\User;
@@ -24,8 +25,7 @@ final class RoomForm extends Component
 
     public function mount(string $kind, ?Room $room = null): void
     {
-        $this->assertKind($kind);
-        $this->kind = $kind;
+        $this->kind = RoomKind::fromRoute($kind)->value;
         $this->room = $room;
 
         if ($room) {
@@ -102,7 +102,10 @@ final class RoomForm extends Component
 
     public function delete()
     {
-        abort_unless($this->room, 404);
+        if ($this->room === null) {
+            abort(404);
+        }
+
         Gate::authorize('delete', $this->room);
         $previousMembers = $this->room->users()->pluck('users.id')->all();
         $roomId = $this->room->id;
@@ -141,11 +144,7 @@ final class RoomForm extends Component
 
     private function type(): string
     {
-        return match ($this->kind) {
-            'opens' => 'Rooms::Open',
-            'closeds' => 'Rooms::Closed',
-            'directs' => 'Rooms::Direct',
-        };
+        return RoomKind::fromRoute($this->kind)->roomType();
     }
 
     private function kindFor(Room $room): string
@@ -156,10 +155,5 @@ final class RoomForm extends Component
             'Rooms::Direct' => 'directs',
             default => abort(404),
         };
-    }
-
-    private function assertKind(string $kind): void
-    {
-        abort_unless(in_array($kind, ['opens', 'closeds', 'directs'], true), 404);
     }
 }
