@@ -36,9 +36,13 @@ final class WebhookDestinations
     private const SPECIAL_IPV6_RANGES = [
         '2001::/23',
         '2001:db8::/32',
-        '2002::/16',
         '2620:4f:8000::/48',
         '3fff::/20',
+    ];
+
+    /** @var list<string> */
+    private const TRANSITION_IPV6_RANGES = [
+        '2002::/16',
     ];
 
     public function __construct(private ?Closure $resolver = null) {}
@@ -142,7 +146,8 @@ final class WebhookDestinations
         }
 
         return IpUtils::checkIp($address, '2000::/3')
-            && ! IpUtils::checkIp($address, self::SPECIAL_IPV6_RANGES);
+            && ! IpUtils::checkIp($address, self::SPECIAL_IPV6_RANGES)
+            && ! IpUtils::checkIp($address, self::TRANSITION_IPV6_RANGES);
     }
 
     /** @return list<string> */
