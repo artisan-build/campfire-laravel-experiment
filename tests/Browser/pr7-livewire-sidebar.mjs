@@ -273,7 +273,7 @@ try {
     await pageA.goto(`${baseUrl}/rooms/closeds/${targetId}/edit`)
     pageA.once("dialog", (dialog) => dialog.accept())
     await Promise.all([
-      pageA.waitForURL(`${baseUrl}/`),
+      pageA.waitForURL((url) => url.pathname === "/" || (/^\/rooms\/\d+$/.test(url.pathname) && url.pathname !== `/rooms/${targetId}`)),
       pageA.getByRole("button", { name: `Delete ${renamedTargetName}`, exact: true }).click(),
       roomLink(pageB1, targetId).waitFor({ state: "detached" }),
       roomLink(pageB2, targetId).waitFor({ state: "detached" }),

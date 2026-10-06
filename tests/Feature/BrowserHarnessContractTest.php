@@ -28,6 +28,9 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('Tab 1 missed unread class', $source);
         $this->assertStringContainsString('Other tab missed read clearing', $source);
         $this->assertStringContainsString('Deleted room link remained in a receiving tab', $source);
+        $this->assertStringContainsString('url.pathname === "/" || (/^\\/rooms\\/\\d+$/.test(url.pathname) && url.pathname !== `/rooms/${targetId}`)', $source);
+        $this->assertStringContainsString('B navigated while receiving room deletion', $source);
+        $this->assertStringNotContainsString('pageA.waitForURL(`${baseUrl}/`)', $source);
         $this->assertStringContainsString('Tab 1 missed direct-room reorder', $source);
         $this->assertStringContainsString('Room ${roomId} classes were not exact', $source);
         $this->assertStringContainsString('writeFileSync(outputPath', $source);
