@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\WebhookDestinations;
 use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\UriResolver;
 use Illuminate\Http\Request;
@@ -9,25 +10,19 @@ use Illuminate\Support\Facades\Http;
 
 final class LinksController extends Controller
 {
+    public function __construct(private WebhookDestinations $destinations) {}
+
     public function unfurl(Request $r)
     {
         $url = $r->validate(['url' => 'required|url:http,https'])['url'];
         $doc = null;
         for ($redirects = 0; $redirects < 5; $redirects++) {
-            $u = parse_url($url);
-            if (isset($u['user']) || isset($u['pass'])) {
+            $destination = $this->destinations->resolve($url);
+            if ($destination === null) {
                 return response('', 204);
-            }$host = $u['host'];
-            $ips = gethostbynamel($host);
-            if (! $ips) {
-                return response('', 204);
-            }foreach ($ips as $ip) {
-                if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                    return response('', 204);
-                }
             }
             try {
-                $reply = Http::timeout(7)->connectTimeout(7)->withOptions(['allow_redirects' => false, 'curl' => [CURLOPT_RESOLVE => [$host.':'.($u['port'] ?? ($u['scheme'] === 'https' ? 443 : 80)).':'.$ips[0]]]])->get($url);
+                $reply = Http::timeout(7)->connectTimeout(7)->withOptions($this->destinations->connectionOptions($destination))->get($url);
             } catch (\Throwable) {
                 return response('', 204);
             }

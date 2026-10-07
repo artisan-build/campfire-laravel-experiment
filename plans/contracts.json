@@ -76,14 +76,15 @@
     },
     "push": {
       "status": "verified",
-      "evidence": "Focused Livewire tests verify accepted endpoint persistence, per-user list/remove/test scoping, cross-user rejection and queued DeliverPush dispatch without rendering endpoint or key material. PR8's headed persistent-Chrome matrix live-verifies subscription, real database-queue delivery, notification display, cross-user denial, own removal and logout cleanup."
+      "evidence": "Focused Livewire tests verify accepted endpoint persistence, per-user list/remove/test scoping, cross-user rejection and queued DeliverPush dispatch without rendering endpoint or key material. PR8's headed persistent-Chrome matrix live-verifies subscription, real database-queue delivery, notification display, cross-user denial, own removal and logout cleanup. PR8.1 focused security tests verify that the push-service host allowlist is followed by the shared true-global address classifier, a persisted endpoint is re-resolved once at delivery, and that exact classified address is carried into the WebPush client's no-redirect, no-proxy cURL pin."
     },
     "webhooks": {
       "status": "verified",
       "evidence": "Independent local HTTP receiver verifies actual queued delivery and persisted native bot reply; PHPUnit verifies no callback loop. PR8 canonicalizes every address through one classifier: IPv4 must first belong to a positive public-unicast class and then survive subtraction of IANA non-global, special, multicast and reserved ranges, while IPv6 must first belong to 2000::/3 and then survive subtraction of documentation, benchmarking, ORCHIDv2, Teredo, 6to4 and the remaining non-global special-purpose ranges. Explicit globally reachable exceptions are preserved. The classifier governs literal saves, validation, DNS answers and the normalized address passed to the cURL connection pin. Permanent reproducer and top-nibble tests verify the allowlist structure; removing the IPv6 membership gate, IPv4 special-range subtraction or normalized classifier output each turns its focused test red. A real Guzzle cURL-handler test proves the pin, redirect refusal and unknown-length 20 MiB ceiling."
     },
     "unfurl": {
-      "status": "pending"
+      "status": "partially_verified",
+      "evidence": "Focused PR8.1 security tests verify that the initial client-supplied URL and every redirect hop use the shared true-global address classifier, refuse non-global IPv4 and IPv6 answers before sending, and pin the exact classified address with redirects and proxies disabled. Broader metadata extraction and browser behavior remain pending."
     },
     "jobs": {
       "status": "verified",
