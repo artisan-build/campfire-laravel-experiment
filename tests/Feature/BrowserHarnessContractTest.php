@@ -22,7 +22,16 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('context_model: "persistent"', $source);
         $this->assertSame(2, substr_count($source, 'run_id: runId, provenance, states'));
         $this->assertSame(3, substr_count($source, 'chromium.launchPersistentContext('));
-        $this->assertStringContainsString('const deadline = Date.now() + 30_000', $source);
+        $this->assertStringContainsString('const roomId = integerInput("PR8_ROOM_ID", undefined, { positive: true })', $source);
+        $this->assertStringContainsString('const lockedTamperExpectedStatus = integerInput("PR8_LOCKED_TAMPER_STATUS", "500", { positive: true })', $source);
+        $this->assertStringContainsString('const notificationTimeoutSeconds = integerInput("PR8_NOTIFICATION_TIMEOUT_SECONDS", "30", { positive: true })', $source);
+        $this->assertStringContainsString('const deadline = Date.now() + notificationTimeoutSeconds * 1_000', $source);
+        $this->assertStringContainsString('room_id: roomId', $source);
+        $this->assertStringContainsString('locked_tamper_expected_status: lockedTamperExpectedStatus', $source);
+        $this->assertStringContainsString('notification_timeout_seconds: notificationTimeoutSeconds', $source);
+        $this->assertStringContainsString('command.includes(path)', $source);
+        $this->assertStringContainsString('Expected one bot command for room ${roomId}', $source);
+        $this->assertStringNotContainsString('locator(\'input[aria-label="curl command for posting messages"]\').inputValue()', $source);
         $this->assertStringContainsString('getByTestId', $source);
         $this->assertStringContainsString('bot api post update boost delete', $source);
         $this->assertStringContainsString('search and personal history', $source);
@@ -50,10 +59,10 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('name: "non-admin bot access"', $source);
         $this->assertStringContainsString('name: "cross-user push removal"', $source);
         $this->assertStringContainsString('name: "transfer-id locked-property substitution"', $source);
-        $this->assertSame(2, substr_count($source, 'status: 500'));
+        $this->assertSame(2, substr_count($source, '      status: lockedTamperExpectedStatus,'));
         $this->assertSame(1, substr_count($source, 'status: 403'));
         $this->assertSame(1, substr_count($source, 'status: 404'));
-        $this->assertStringContainsString('writeFileSync(outputPath', $source);
+        $this->assertSame(2, substr_count($source, 'writeArtifact({'));
         $this->assertStringContainsString('process.exitCode = 1', $source);
         $this->assertStringNotContainsString('setInterval', $source);
 

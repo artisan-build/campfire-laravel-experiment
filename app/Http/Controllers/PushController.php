@@ -36,7 +36,7 @@ final class PushController extends Controller
     {
         $s = DB::table('push_subscriptions')->where('id', $id)->where('user_id', $r->user()->id)->first();
         abort_unless($s, 404);
-        DeliverPush::dispatch((array) $s, ['title' => 'Campfire', 'body' => 'Notifications are working', 'path' => '/']);
+        DeliverPush::dispatch((array) $s, DeliverPush::payload('Campfire', 'Notifications are working', '/'));
 
         return response('', 200);
     }

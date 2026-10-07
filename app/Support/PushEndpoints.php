@@ -4,7 +4,10 @@ namespace App\Support;
 
 final class PushEndpoints
 {
-    public function resolve(string $endpoint): ?string
+    public function __construct(private WebhookDestinations $destinations) {}
+
+    /** @return array{host: string, port: int, ip: string}|null */
+    public function resolve(string $endpoint): ?array
     {
         $u = parse_url($endpoint);
         if (! $u || ($u['scheme'] ?? '') !== 'https' || ($u['port'] ?? 443) !== 443 || isset($u['user']) || isset($u['pass'])) {
@@ -16,18 +19,11 @@ final class PushEndpoints
             if ($host === $domain || str_ends_with($host, '.'.$domain)) {
                 $allowed = true;
             }
-        }if (! $allowed) {
-            return null;
         }
-        $ips = gethostbynamel($host);
-        if (! $ips) {
+        if (! $allowed) {
             return null;
-        }foreach ($ips as $ip) {
-            if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                return null;
-            }
         }
 
-        return $ips[0];
+        return $this->destinations->resolve($endpoint);
     }
 }

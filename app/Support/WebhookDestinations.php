@@ -123,10 +123,8 @@ final class WebhookDestinations
     /** @param array{host: string, port: int, ip: string} $destination */
     public function requestOptions(array $destination, BoundedResponseStream $sink): array
     {
-        $ip = str_contains($destination['ip'], ':') ? '['.$destination['ip'].']' : $destination['ip'];
-
         return [
-            'allow_redirects' => false,
+            ...$this->connectionOptions($destination),
             'decode_content' => false,
             'headers' => ['Accept-Encoding' => 'identity'],
             'on_headers' => function (ResponseInterface $response) use ($sink): void {
@@ -140,8 +138,18 @@ final class WebhookDestinations
                     $sink->reject('Webhook response exceeded the allowed size.');
                 }
             },
-            'proxy' => '',
             'sink' => $sink,
+        ];
+    }
+
+    /** @param array{host: string, port: int, ip: string} $destination */
+    public function connectionOptions(array $destination): array
+    {
+        $ip = str_contains($destination['ip'], ':') ? '['.$destination['ip'].']' : $destination['ip'];
+
+        return [
+            'allow_redirects' => false,
+            'proxy' => '',
             'curl' => [
                 CURLOPT_RESOLVE => [$destination['host'].':'.$destination['port'].':'.$ip],
                 CURLOPT_PROXY => '',
