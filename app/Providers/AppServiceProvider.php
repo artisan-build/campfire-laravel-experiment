@@ -10,8 +10,8 @@ use App\Policies\MessagePolicy;
 use App\Policies\RoomPolicy;
 use App\Support\Assets;
 use App\Support\BlobStorage;
-use App\Support\RailsCrypto;
 use App\Support\RichTextRenderer;
+use App\Support\SignedIdentifiers;
 use App\Support\Vapid;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -25,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RichTextRenderer::class);
         $this->app->singleton(Assets::class);
         $this->app->singleton(BlobStorage::class);
-        $this->app->singleton(RailsCrypto::class);
+        $this->app->singleton(SignedIdentifiers::class);
         $this->app->singleton(Vapid::class);
         $this->app->singleton(CampfireSession::class);
     }

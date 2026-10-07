@@ -80,7 +80,7 @@ final class MessageWriter
         preg_match_all('/sgid=[\"\']([^\"\']+)[\"\']/', $body, $matches);
         $ids = [];
         foreach ($matches[1] as $sgid) {
-            $reference = app(RailsCrypto::class)->verifySgid(html_entity_decode($sgid));
+            $reference = app(SignedIdentifiers::class)->verifySgid(html_entity_decode($sgid));
             if (($reference['model'] ?? '') === 'ActiveStorage::Blob' && Blob::find($reference['id'])) {
                 $ids[] = $reference['id'];
             }

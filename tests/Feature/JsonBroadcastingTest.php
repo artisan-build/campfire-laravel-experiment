@@ -8,7 +8,6 @@ use App\Events\MessageDeleted;
 use App\Events\MessagePosted;
 use App\Events\MessageUpdated;
 use App\Events\SidebarChanged;
-use App\Events\TurboStreamBroadcast;
 use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
 use App\Models\Blob;
@@ -18,7 +17,7 @@ use App\Models\Message;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\MessageWriter;
-use App\Support\RailsCrypto;
+use App\Support\SignedIdentifiers;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -100,7 +99,7 @@ final class JsonBroadcastingTest extends TestCase
         }
 
         $text = substr($text, 0, 4096 - strlen($tail)).$tail;
-        $mention = '<action-text-attachment sgid="'.app(RailsCrypto::class)->sgid($mentioned->id).'" content-type="application/vnd.campfire.mention"></action-text-attachment>';
+        $mention = '<action-text-attachment sgid="'.app(SignedIdentifiers::class)->sgid($mentioned->id).'" content-type="application/vnd.campfire.mention"></action-text-attachment>';
         $message = app(MessageWriter::class)->create($room, $author, [
             'body' => '<p>'.$text.'</p><p>'.$mention.'</p>',
             'client_message_id' => 'combined-budget-message',
@@ -195,11 +194,10 @@ final class JsonBroadcastingTest extends TestCase
             Boost::create(['message_id' => $message->id, 'booster_id' => $booster->id, 'content' => 'boost-'.$number]);
         }
         $this->auth($author);
-        Event::fake([TurboStreamBroadcast::class, MessageUpdated::class]);
+        Event::fake([MessageUpdated::class]);
 
         $this->withHeader('Accept', 'application/json')->patch('/rooms/'.$room->id.'/messages/'.$message->id, ['message' => ['body' => '<p>After</p>']])->assertOk();
 
-        Event::assertNotDispatched(TurboStreamBroadcast::class);
         Event::assertDispatched(MessageUpdated::class);
         $event = Event::dispatched(MessageUpdated::class)->first()[0];
         $broadcast = $event->broadcastWith()['message'];
@@ -237,7 +235,7 @@ final class JsonBroadcastingTest extends TestCase
     {
         [$author] = $this->fixture();
         $other = User::create(['name' => 'Sidebar Member', 'role' => 0, 'status' => 0]);
-        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        Event::fake([SidebarChanged::class]);
         $this->auth($author);
 
         $this->post('/rooms/closeds', [
@@ -249,14 +247,12 @@ final class JsonBroadcastingTest extends TestCase
             && $event->broadcastAs() === 'sidebar.changed'
             && $event->broadcastWith() === ['refresh' => true]);
         Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $other->id);
-        Event::assertNotDispatched(TurboStreamBroadcast::class);
         $this->assertContains(ShouldBroadcastNow::class, class_implements(SidebarChanged::class));
 
         $room = Room::where('name', 'Signal Room')->firstOrFail();
-        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        Event::fake([SidebarChanged::class]);
         $this->delete('/rooms/closeds/'.$room->id)->assertRedirect();
         Event::assertDispatched(SidebarChanged::class);
-        Event::assertNotDispatched(TurboStreamBroadcast::class);
     }
 
     public function test_controller_open_room_deletion_is_json_only_on_the_message_rollback_path(): void
@@ -268,8 +264,7 @@ final class JsonBroadcastingTest extends TestCase
         foreach ([$member, $bot, $inactive] as $user) {
             Membership::create(['room_id' => $room->id, 'user_id' => $user->id, 'involvement' => 'mentions']);
         }
-        config(['campfire.json_message_stream' => false]);
-        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        Event::fake([SidebarChanged::class]);
         $this->auth($owner);
 
         $this->delete('/rooms/opens/'.$room->id)->assertRedirect('/');
@@ -278,14 +273,12 @@ final class JsonBroadcastingTest extends TestCase
         Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $owner->id);
         Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $member->id);
         Event::assertNotDispatched(SidebarChanged::class, fn (SidebarChanged $event) => in_array($event->userId, [$bot->id, $inactive->id], true));
-        Event::assertNotDispatched(TurboStreamBroadcast::class);
         $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
     }
 
     private function fakeBroadcasts(): void
     {
         Event::fake([
-            TurboStreamBroadcast::class,
             MessagePosted::class,
             MessageUpdated::class,
             MessageDeleted::class,
@@ -296,7 +289,6 @@ final class JsonBroadcastingTest extends TestCase
 
     private function assertJsonMutationEvents(int $roomId, int $messageId, int $boostId, string $clientMessageId): void
     {
-        Event::assertNotDispatched(TurboStreamBroadcast::class);
         Event::assertDispatched(MessagePosted::class, fn (MessagePosted $event) => $this->isRoomEvent($event, $roomId, 'message.posted'));
         Event::assertDispatched(MessageUpdated::class, fn (MessageUpdated $event) => $this->isRoomEvent($event, $roomId, 'message.updated')
             && $event->broadcastWith()['message']['body']['plain_text'] === ($event->broadcastWith()['message']['creator']['role'] === 'bot' ? 'Bot after' : 'After'));

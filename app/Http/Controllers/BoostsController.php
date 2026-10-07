@@ -15,20 +15,6 @@ final class BoostsController extends Controller
         return Message::presentation()->whereIn('room_id', $r->user()->rooms()->select('rooms.id'))->findOrFail($id);
     }
 
-    public function index(Request $r, int $id)
-    {
-        $message = $this->message($r, $id);
-
-        return view('boosts.index', compact('message'));
-    }
-
-    public function new(Request $r, int $id)
-    {
-        $message = $this->message($r, $id);
-
-        return view('boosts.new', compact('message'));
-    }
-
     public function create(Request $r, int $id)
     {
         $m = $this->message($r, $id);
@@ -46,14 +32,12 @@ final class BoostsController extends Controller
         $m = $this->message($r, $id);
         $b = $m->boosts()->findOrFail($boost);
         abort_unless($r->user()->id === $b->booster_id, 403);
-        $s = app(ChatEvents::class)->removeBoost($m, $b);
+        app(ChatEvents::class)->removeBoost($m, $b);
 
         if ($r->expectsJson()) {
             return response()->noContent();
         }
 
-        return config('campfire.json_message_stream')
-            ? redirect('/rooms/'.$m->room_id, 303)
-            : response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
+        return redirect('/rooms/'.$m->room_id, 303);
     }
 }

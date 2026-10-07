@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Events\SidebarChanged;
-use App\Events\TurboStreamBroadcast;
 use App\Livewire\ProfileSettings;
 use App\Livewire\RoomForm;
 use App\Livewire\Sidebar;
@@ -96,8 +95,7 @@ final class LivewireSidebarTest extends TestCase
     {
         [$viewer] = $this->fixture();
         $bot = User::create(['name' => 'Ignored Bot', 'role' => 2, 'status' => 0, 'bot_token' => 'ignored-bot-token']);
-        config(['campfire.json_message_stream' => false]);
-        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        Event::fake([SidebarChanged::class]);
 
         app(SidebarEvents::class)->refresh([$viewer->id, $viewer->id, $bot->id]);
 
@@ -111,7 +109,6 @@ final class LivewireSidebarTest extends TestCase
                 && $payload === ['refresh' => true]
                 && ! str_contains(json_encode($payload, JSON_THROW_ON_ERROR), '<');
         });
-        Event::assertNotDispatched(TurboStreamBroadcast::class);
     }
 
     public function test_livewire_open_room_deletion_is_json_only_on_the_message_rollback_path(): void
@@ -123,8 +120,7 @@ final class LivewireSidebarTest extends TestCase
         foreach ([$member, $bot, $inactive] as $user) {
             Membership::create(['room_id' => $room->id, 'user_id' => $user->id, 'involvement' => 'mentions']);
         }
-        config(['campfire.json_message_stream' => false]);
-        Event::fake([SidebarChanged::class, TurboStreamBroadcast::class]);
+        Event::fake([SidebarChanged::class]);
 
         Livewire::actingAs($owner)->test(RoomForm::class, ['kind' => 'opens', 'room' => $room])
             ->call('delete')
@@ -134,7 +130,6 @@ final class LivewireSidebarTest extends TestCase
         Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $owner->id);
         Event::assertDispatched(SidebarChanged::class, fn (SidebarChanged $event) => $event->userId === $member->id);
         Event::assertNotDispatched(SidebarChanged::class, fn (SidebarChanged $event) => in_array($event->userId, [$bot->id, $inactive->id], true));
-        Event::assertNotDispatched(TurboStreamBroadcast::class);
         $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
     }
 

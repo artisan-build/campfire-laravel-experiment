@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Support\RailsCrypto;
+use App\Support\SignedIdentifiers;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -19,7 +19,7 @@ final class TransfersController extends Controller
 
     public function update(Request $r, string $id)
     {
-        $user = User::active()->find(app(RailsCrypto::class)->verifyId($id, 'User', 'transfer'));
+        $user = User::active()->find(app(SignedIdentifiers::class)->verifyId($id, 'User', 'transfer'));
         abort_unless($user, 400);
 
         return app(SessionController::class)->start($r, $user);

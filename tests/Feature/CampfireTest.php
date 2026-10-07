@@ -12,8 +12,8 @@ use App\Models\User;
 use App\Support\BlobStorage;
 use App\Support\Media;
 use App\Support\MessageWriter;
-use App\Support\RailsCrypto;
 use App\Support\RichTextRenderer;
+use App\Support\SignedIdentifiers;
 use App\Support\WebhookDestinations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -63,9 +63,6 @@ final class CampfireTest extends TestCase
             ->assertSee('data-testid="room-message-template"', false)
             ->assertDontSee('turbo-echo-stream-source', false);
 
-        config(['campfire.json_message_stream' => false]);
-        $this->get('/rooms/'.$room->id)->assertOk()
-            ->assertSee('<turbo-echo-stream-source channel="rooms.'.$room->id.'"', false);
         $this->get('/users/me/sidebar')->assertOk()->assertSee('Watercooler');
         $this->get('/searches?q=Hello')->assertOk()->assertSee('Hello Campfire');
     }
@@ -117,7 +114,7 @@ final class CampfireTest extends TestCase
     public function test_mentions_preserve_signed_reference_and_safe_html(): void
     {
         [$u,$room] = $this->fixture();
-        $sgid = app(RailsCrypto::class)->sgid($u->id);
+        $sgid = app(SignedIdentifiers::class)->sgid($u->id);
         $body = '<p>Hi <action-text-attachment sgid="'.$sgid.'" content-type="application/vnd.campfire.mention"></action-text-attachment><script>alert(1)</script></p>';
         $m = app(MessageWriter::class)->create($room, $u, ['body' => $body]);
         $stored = $m->fresh()->richText->body;

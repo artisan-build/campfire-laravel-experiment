@@ -1,4 +1,4 @@
-import * as Lexxy from "lexxy"
+import * as Lexxy from "../../lexxy-a21f41d4.js"
 
 const { ElementNode } = Lexxy.Lexical
 

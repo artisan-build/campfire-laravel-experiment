@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Support\RailsCrypto;
+use App\Support\SignedIdentifiers;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +41,7 @@ final class User extends Record implements AuthenticatableContract
 
     public function avatarToken(): string
     {
-        return app(RailsCrypto::class)->signedId($this->id, 'User', 'avatar');
+        return app(SignedIdentifiers::class)->signedId($this->id, 'User', 'avatar');
     }
 
     public function avatarUrl(): string

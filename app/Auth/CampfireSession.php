@@ -3,7 +3,6 @@
 namespace App\Auth;
 
 use App\Models\User;
-use App\Support\RailsCrypto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +14,7 @@ final class CampfireSession
             return $request->attributes->get('campfire_session');
         }
 
-        $token = app(RailsCrypto::class)->verifyCookie('session_token', $request->cookie('session_token'));
+        $token = $request->cookie('session_token');
         $session = is_string($token) ? DB::table('sessions')->where('token', $token)->first() : null;
         $request->attributes->set('campfire_session', $session);
 

@@ -86,13 +86,13 @@ final class BlobStorage
 
     public function url(Blob $blob): string
     {
-        return '/rails/active_storage/blobs/redirect/'.app(RailsCrypto::class)->signedId($blob->id, 'ActiveStorage::Blob', 'blob_id').'/'.rawurlencode($blob->filename);
+        return '/rails/active_storage/blobs/redirect/'.app(SignedIdentifiers::class)->signedId($blob->id, 'ActiveStorage::Blob', 'blob_id').'/'.rawurlencode($blob->filename);
     }
 
     public function attach(Message $message, UploadedFile|string $source): Blob
     {
         if (is_string($source)) {
-            $id = app(RailsCrypto::class)->verifyId($source, 'ActiveStorage::Blob', 'blob_id');
+            $id = app(SignedIdentifiers::class)->verifyId($source, 'ActiveStorage::Blob', 'blob_id');
             $blob = Blob::findOrFail($id);
         } else {
             $blob = $this->store($source);
@@ -178,7 +178,7 @@ final class BlobStorage
 
     public function representationUrl(Blob $blob, array $variation): string
     {
-        return '/rails/active_storage/representations/redirect/'.app(RailsCrypto::class)->signedId($blob->id, 'ActiveStorage::Blob', 'blob_id').'/'.app(RailsCrypto::class)->appSign($variation, 'variation').'/'.rawurlencode($blob->filename);
+        return '/rails/active_storage/representations/redirect/'.app(SignedIdentifiers::class)->signedId($blob->id, 'ActiveStorage::Blob', 'blob_id').'/'.app(SignedIdentifiers::class)->appSign($variation, 'variation').'/'.rawurlencode($blob->filename);
     }
 
     public function attached(string $type, int $id, string $name): ?Blob

@@ -5,7 +5,6 @@ namespace Tests;
 use App\Models\Membership;
 use App\Models\Room;
 use App\Models\User;
-use App\Support\RailsCrypto;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +30,7 @@ abstract class TestCase extends BaseTestCase
     {
         $token = 'local-fixture-session-'.$user->id;
         DB::table('sessions')->insert(['token' => $token, 'user_id' => $user->id, 'last_active_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-        $this->withUnencryptedCookie('session_token', app(RailsCrypto::class)->signCookie('session_token', $token));
+        $this->withCookie('session_token', $token);
     }
 
     /** The message ids Postgres full text search returns for a query, newest first. */

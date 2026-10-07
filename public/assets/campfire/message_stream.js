@@ -1,4 +1,4 @@
-import { csrfToken, getEcho, onConnectionChange, reconnect } from "campfire/echo/config"
+import { csrfToken, getEcho, onConnectionChange, reconnect } from "./echo/config.js"
 
 const MESSAGE_KEYS = [ "id", "client_message_id", "created_at", "updated_at", "body", "creator", "room", "url", "attachment", "boosts", "mentions" ]
 const MAX_MESSAGES = 300

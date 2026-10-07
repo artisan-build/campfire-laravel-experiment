@@ -3,8 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\User;
-use App\Support\RailsCrypto;
 use App\Support\SessionAuthentication;
+use App\Support\SignedIdentifiers;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -20,7 +20,7 @@ final class SessionTransfer extends Component
 
     public function confirm()
     {
-        $user = User::active()->find(app(RailsCrypto::class)->verifyId($this->transferId, 'User', 'transfer'));
+        $user = User::active()->find(app(SignedIdentifiers::class)->verifyId($this->transferId, 'User', 'transfer'));
         abort_unless($user instanceof User, 400);
         session()->regenerate();
 
