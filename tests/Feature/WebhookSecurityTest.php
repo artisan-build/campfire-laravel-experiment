@@ -114,6 +114,75 @@ final class WebhookSecurityTest extends TestCase
         $this->assertSame(0, $resolverCalls);
     }
 
+    public function test_true_allowlist_rejects_reserved_and_ipv4_translated_ipv6_addresses_on_every_classification_path(): void
+    {
+        $resolverCalls = 0;
+        $policy = new WebhookDestinations(function () use (&$resolverCalls): array {
+            $resolverCalls++;
+
+            return [];
+        });
+
+        foreach ([
+            'fec0::1' => 'deprecated site-local',
+            'fec0::a:0:0:1' => 'site-local SSRF shape',
+            '4000::1' => 'IANA 4000::/3 reserved',
+            '8000::1' => 'IANA 8000::/3 reserved',
+            'c000::1' => 'IANA c000::/3 reserved',
+            'f800::1' => 'IANA f800::/6 reserved',
+            '1000::1' => 'IANA 1000::/4 reserved',
+            '::ffff:0:7f00:1' => 'IPv4-translated loopback',
+            '::ffff:0:a00:1' => 'IPv4-translated private address',
+        ] as $address => $message) {
+            $url = "http://[{$address}]/hook";
+
+            $this->assertNull($policy->resolve($url), $message.' literal save path');
+
+            $validationFailure = null;
+            ($policy->validationRule())('webhook_url', $url, function (string $message) use (&$validationFailure): void {
+                $validationFailure = $message;
+            });
+            $this->assertSame('The webhook_url must resolve only to public network addresses.', $validationFailure, $message.' validation path');
+        }
+
+        $this->assertSame(0, $resolverCalls);
+
+        $viaDns = new WebhookDestinations(fn (string $host): array => ['fec0::1']);
+        $this->assertNull($viaDns->resolve('http://attacker.example/hook'), 'site-local DNS/AAAA answer');
+    }
+
+    public function test_ipv6_allowlist_can_only_admit_addresses_in_2000_prefix_through_3fff_prefix(): void
+    {
+        $policy = new WebhookDestinations;
+
+        foreach (range(0, 15) as $topNibble) {
+            $address = dechex($topNibble).'000::1';
+            $url = "http://[{$address}]/hook";
+
+            if (in_array($topNibble, [2, 3], true)) {
+                $this->assertSame($address, $policy->resolve($url)['ip'] ?? null, $address);
+            } else {
+                $this->assertNull($policy->resolve($url), $address);
+            }
+        }
+    }
+
+    public function test_dns_answer_is_normalized_by_the_shared_classifier_before_it_becomes_the_connection_pin(): void
+    {
+        $policy = new WebhookDestinations(fn (string $host): array => ['2606:4700:4700:0000:0000:0000:0000:1111']);
+        $destination = $policy->resolve('https://public.example/hook');
+
+        $this->assertSame('2606:4700:4700::1111', $destination['ip'] ?? null);
+
+        $resource = fopen('php://temp', 'w+b');
+        $this->assertIsResource($resource);
+        $sink = new BoundedResponseStream(Utils::streamFor($resource));
+        $options = $policy->requestOptions($destination, $sink);
+
+        $this->assertSame(['public.example:443:[2606:4700:4700::1111]'], $options['curl'][CURLOPT_RESOLVE]);
+        $sink->close();
+    }
+
     /**
      * One representative per row in the IANA IPv4 and IPv6 Special-Purpose Address Registries.
      * Registry snapshot last updated 2025-10-09; N/A rows fail closed and transition prefixes are rejected.
@@ -164,7 +233,7 @@ final class WebhookSecurityTest extends TestCase
             'IPv6 2001:3::/32 AMT' => ['address' => '2001:3::1', 'globally_reachable' => 'True', 'accepted' => true],
             'IPv6 2001:4:112::/48 AS112-v6' => ['address' => '2001:4:112::1', 'globally_reachable' => 'True', 'accepted' => true],
             'IPv6 2001:10::/28 Deprecated ORCHID' => ['address' => '2001:10::1', 'globally_reachable' => 'N/A', 'accepted' => false],
-            'IPv6 2001:20::/28 ORCHIDv2' => ['address' => '2001:20::1', 'globally_reachable' => 'True', 'accepted' => true],
+            'IPv6 2001:20::/28 ORCHIDv2' => ['address' => '2001:20::1', 'globally_reachable' => 'True (special-purpose rejected)', 'accepted' => false],
             'IPv6 2001:30::/28 Drone Remote ID Protocol Entity Tags' => ['address' => '2001:30::1', 'globally_reachable' => 'True', 'accepted' => true],
             'IPv6 2001:db8::/32 Documentation' => ['address' => '2001:db8::1', 'globally_reachable' => 'False', 'accepted' => false],
             'IPv6 2002::/16 6to4' => ['address' => '2002:7f00:1::', 'globally_reachable' => 'N/A (transition rejected)', 'accepted' => false],
