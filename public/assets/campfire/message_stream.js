@@ -687,7 +687,7 @@ Alpine.data("messageStream", (options) => ({
   connectionChanged(connected) {
     clearTimeout(this.offlineTimer)
     if (connected) {
-      if (this.connectedOnce) this.recover()
+      if (this.connectedOnce || this.upToDate) this.recover()
       this.connectedOnce = true
       this.disconnectedAt = null
       this.$refs.fields.disabled = false

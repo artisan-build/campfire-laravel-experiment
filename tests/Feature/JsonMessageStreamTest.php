@@ -163,11 +163,12 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertStringContainsString('handleBoostReveal(event)', $source);
     }
 
-    public function test_initial_connection_preserves_the_rendered_window_but_reconnection_recovers(): void
+    public function test_initial_connection_recovers_latest_windows_preserves_history_and_reconnection_recovers(): void
     {
         $source = file_get_contents(public_path('assets/campfire/message_stream.js'));
 
-        $this->assertStringContainsString("if (connected) {\n      if (this.connectedOnce) this.recover()\n      this.connectedOnce = true", $source);
+        $this->assertStringContainsString("if (connected) {\n      if (this.connectedOnce || this.upToDate) this.recover()\n      this.connectedOnce = true", $source);
+        $this->assertStringNotContainsString("if (connected) {\n      if (this.connectedOnce) this.recover()\n      this.connectedOnce = true", $source);
         $this->assertStringNotContainsString("if (connected) {\n      this.recover()\n      this.connectedOnce = true", $source);
     }
 
