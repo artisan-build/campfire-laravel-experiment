@@ -1,7 +1,7 @@
 {
   "reference_revision": "659f95748a115a360a37db9bf80a5361a560e14f",
   "runtime": "Laravel 13 / PHP 8.4",
-  "ui_bar": "Laravel-native Alpine/Echo message stream and Livewire settings/sidebar/search/auth/bots/push active; relative-module frontend and Laravel cookie/CSRF cutover complete, final PR9 live gate pending",
+  "ui_bar": "Laravel-native Alpine/Echo message stream and Livewire settings/sidebar/search/auth/bots/push active; relative-module frontend and Laravel cookie/CSRF cutover complete and production live-verified",
   "contracts": {
     "schema": {
       "status": "pending"
@@ -20,11 +20,11 @@
     },
     "messages": {
       "status": "partially_verified",
-      "evidence": "Real create/update/delete, FTS, unreads and commit/rollback notification behavior are verified. The PR5 JSON stream and edit-reconciliation hotfix passed the exact managed-Reverb production matrix; bounded resources, reconnect convergence, optimistic markers and stable pagination remain focused-test verified."
+      "evidence": "Real create/update/delete, FTS, unreads and commit/rollback notification behavior are verified. The final PR9 exact-SHA managed-Reverb production matrix verifies bounded JSON resources, optimistic reconciliation, stable before/after pagination with permalink retention, return-to-latest, reconnect convergence, editing and deletion."
     },
     "json_message_stream": {
       "status": "verified",
-      "evidence": "Focused PHPUnit verifies the Alpine/Echo bootstrap, five-event wiring, authoritative reconnect, canonical editable rich text, JSON mutation contracts, resource schema and authorization. The Turbo rollback flag, rendered stream branches and obsolete public Rails module graph are removed; the retained entry point uses relative modules. The prior two-user browser harness and exact managed-Reverb production matrix passed after the edit-reconciliation hotfix."
+      "evidence": "Focused PHPUnit verifies the Alpine/Echo bootstrap, five-event wiring, authoritative reconnect, canonical editable rich text, JSON mutation contracts, resource schema and authorization. The Turbo rollback flag, rendered stream branches and obsolete public Rails module graph are removed; the retained entry point uses relative modules. The final PR9 production matrix observed all five JSON event families with no forbidden credential or legacy-frame material."
     },
     "livewire_forms": {
       "status": "verified",
@@ -71,11 +71,11 @@
     },
     "websockets": {
       "status": "partially_verified",
-      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room and Livewire sidebar subscriptions, per-user authorization and payload confidentiality are focused-test verified. PR7's branch-head two-tab sidebar run passed through a local Pusher-compatible relay; managed-Reverb production verification and sustained multi-tab behavior remain pending."
+      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room and Livewire sidebar subscriptions, per-user authorization and payload confidentiality are focused-test verified. The final PR9 managed-Reverb production matrix passed two-user/multi-tab presence, unread, typing, post/edit/delete/boost propagation and logout invalidation."
     },
     "presence": {
       "status": "partially_verified",
-      "evidence": "The active Alpine stream joins the managed-Reverb room presence channel and the obsolete 50-second application presence endpoint/controller path is absent. The final harness records presence subscription frames and a ten-minute zero-application-request idle observation; coordinator live execution remains pending."
+      "evidence": "The active Alpine stream joins the managed-Reverb room presence channel and the obsolete 50-second application presence endpoint/controller path is absent. The final PR9 production matrix recorded 45 presence frames and a fixed ten-minute idle observation with zero application requests."
     },
     "push": {
       "status": "verified",
@@ -105,8 +105,8 @@
       "status": "pending"
     },
     "browser": {
-      "status": "partially_verified",
-      "evidence": "PR5-PR8 live evidence remains valid for their branch-head matrices. The final committed harness is designed and contract-checked for native login/logout/419 CSRF, chat/presence/unread/typing/edit/delete/boost, image/video/search, a fixed ten-minute zero-application-request idle observation, and sleep-latency signature with a kept-awake control. The PR9 coordinator live gate has not run."
+      "status": "verified",
+      "evidence": "PR5-PR8 live evidence remains valid for their branch-head matrices. The final PR9 exact-SHA production harness passed 22/22 for native login/logout/419 CSRF, chat/presence/unread/typing/edit/delete/boost, before/after pagination with permalink retention, image/video/search, initial and reconnect convergence, a fixed ten-minute zero-application-request idle observation, and sleep-latency signature with a kept-awake control."
     },
     "benchmarks": {
       "status": "verified",
@@ -118,7 +118,7 @@
     "independent_http": "18 checks passed",
     "independent_cable_security": "3 checks passed",
     "claude": "Requirements/architecture reviewed; source export blocked by automatic approval review.",
-    "browser": "PR5 exact managed-Reverb production matrix passed 15/15; PR6 fresh-PostgreSQL Livewire matrix passed 6/6; PR7 branch-head sidebar matrix passed 6/6; PR8 stamped headed persistent-Chrome/PostgreSQL matrix passed 11/11 with real queued push delivery and forced-unsubscribe logout recovery",
+    "browser": "PR5 exact managed-Reverb production matrix passed 15/15; PR6 fresh-PostgreSQL Livewire matrix passed 6/6; PR7 branch-head sidebar matrix passed 6/6; PR8 stamped headed persistent-Chrome/PostgreSQL matrix passed 11/11 with real queued push delivery and forced-unsubscribe logout recovery; PR9 exact-SHA managed-Reverb production matrix passed 22/22 with zero idle application requests, a 1,690ms sleep signature delta, all five JSON event families and zero forbidden frame material",
     "concurrent_native_writes": "Four independent PHP applications each create eight messages while holding membership reads 20ms: 32 messages and 32 FTS rows persisted. Independent production FPM 16-client write tests completed twice without failed requests.",
     "pending_socket_admission": "Real TCP regression covers pending admission, deadline and authenticated revocation. Independent production retest admits all 100 connections and delivers all 30 paced messages to every socket in both fresh runs.",
     "benchmark_provenance": "HTTP runtime 112a66f; socket runtime 87b332b. Diff contains only socket admission code, its tests and ledger; all measured HTTP paths unchanged. Production image runtime hashes independently verified."

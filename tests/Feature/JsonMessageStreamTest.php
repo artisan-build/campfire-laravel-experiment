@@ -135,7 +135,6 @@ final class JsonMessageStreamTest extends TestCase
     {
         $source = file_get_contents(public_path('assets/campfire/message_stream.js'));
 
-        $this->assertStringContainsString("if (connected) {\n      this.recover()", $source);
         $this->assertStringContainsString('await this.replaceCurrentWindow(await this.authoritativeSnapshot())', $source);
         $this->assertStringContainsString('while (startedAt !== this.mutationVersion)', $source);
         $this->assertStringContainsString('!Number(message.dataset.messageId) || this.editing.has(message)', $source);
@@ -162,6 +161,15 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertStringContainsString('boost.classList.toggle("expanded")', $source);
         $this->assertStringContainsString('boost.querySelector(\'[data-stream-action="remove-boost"]\')?.focus()', $source);
         $this->assertStringContainsString('handleBoostReveal(event)', $source);
+    }
+
+    public function test_initial_connection_recovers_latest_windows_preserves_history_and_reconnection_recovers(): void
+    {
+        $source = file_get_contents(public_path('assets/campfire/message_stream.js'));
+
+        $this->assertStringContainsString("if (connected) {\n      if (this.connectedOnce || this.upToDate) this.recover()\n      this.connectedOnce = true", $source);
+        $this->assertStringNotContainsString("if (connected) {\n      if (this.connectedOnce) this.recover()\n      this.connectedOnce = true", $source);
+        $this->assertStringNotContainsString("if (connected) {\n      this.recover()\n      this.connectedOnce = true", $source);
     }
 
     public function test_json_mutations_return_explicit_success_and_validation_statuses(): void
