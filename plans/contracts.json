@@ -56,7 +56,7 @@
     },
     "bots": {
       "status": "verified",
-      "evidence": "Native raw-body API, JSON/boost and no-loop webhook tests pass. Independent administration browser verifies bot creation, key rotation and deactivation. Focused Livewire tests verify current-admin authorization on every mutation, locked bot identity, active role-2 scoping, webhook validation and avatar persistence. PR8 focused tests verify true-public-allowlist webhook resolution; separate mutation proofs cover the real cURL connection pin, redirect refusal and bounded response sink."
+      "evidence": "Native raw-body API, JSON/boost and no-loop webhook tests pass. Independent administration browser verifies bot creation, key rotation and deactivation. Focused Livewire tests verify current-admin authorization on every mutation, locked bot identity, active role-2 scoping, webhook validation and avatar persistence. PR8 mutation-verifies true-public-allowlist webhook resolution; separate mutation proofs cover the real cURL connection pin, redirect refusal and bounded response sink."
     },
     "uploads": {
       "status": "partially_verified",
@@ -80,7 +80,7 @@
     },
     "webhooks": {
       "status": "verified",
-      "evidence": "Independent local HTTP receiver verifies actual queued delivery and persisted native bot reply; PHPUnit verifies no callback loop. PR8 canonicalizes every address through one classifier: IPv4 must first belong to a positive public-unicast class and then survive subtraction of IANA non-global, special, multicast and reserved ranges, while IPv6 must first belong to 2000::/3 and then survive subtraction of documentation, benchmarking, ORCHIDv2, Teredo, 6to4 and the remaining non-global special-purpose ranges. Explicit globally reachable exceptions are preserved. The classifier governs literal saves, validation, DNS answers and the normalized address passed to the cURL connection pin. Permanent reproducer and top-nibble tests verify the allowlist structure. A real Guzzle cURL-handler test proves the pin, redirect refusal and unknown-length 20 MiB ceiling."
+      "evidence": "Independent local HTTP receiver verifies actual queued delivery and persisted native bot reply; PHPUnit verifies no callback loop. PR8 canonicalizes every address through one classifier: IPv4 must first belong to a positive public-unicast class and then survive subtraction of IANA non-global, special, multicast and reserved ranges, while IPv6 must first belong to 2000::/3 and then survive subtraction of documentation, benchmarking, ORCHIDv2, Teredo, 6to4 and the remaining non-global special-purpose ranges. Explicit globally reachable exceptions are preserved. The classifier governs literal saves, validation, DNS answers and the normalized address passed to the cURL connection pin. Permanent reproducer and top-nibble tests verify the allowlist structure; removing the IPv6 membership gate, IPv4 special-range subtraction or normalized classifier output each turns its focused test red. A real Guzzle cURL-handler test proves the pin, redirect refusal and unknown-length 20 MiB ceiling."
     },
     "unfurl": {
       "status": "pending"
