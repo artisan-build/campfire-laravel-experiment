@@ -244,13 +244,15 @@ committed asset when frontend source changes.
   preview and an HTTP fetch-required marker; active frames never use Turbo HTML, gzip or pointers.
 - **Turbo navigation behavior is absent.** The nodeless Alpine/Livewire path does not provide Turbo
   prefetch, view transitions or restoration visits; links and forms use normal browser navigation.
-- **The JSON stream and Livewire forms are browser-verified.** The committed PR5 two-context harness
-  passed its managed-Reverb production matrix after the edit-reconciliation hotfix. The PR6 browser
+- **The JSON stream and Livewire forms are browser-verified.** An earlier PR5 two-context harness
+  revision passed its managed-Reverb production matrix after the edit-reconciliation hotfix. The PR6 browser
   matrix verifies persisted room create/rename/open↔closed changes, involvement, profile/avatar and
   account changes, direct-room creation/deduplication, the single Alpine runtime and a clean console.
   The PR7 two-user/two-tab sidebar harness passed against branch-head PostgreSQL and a local
   Pusher-compatible relay: room creation, unread/app-badge delivery and cross-tab read clearing all
-  updated without navigation. Managed-Reverb production verification remains the merge-time rung.
+  updated without navigation. The final PR9 exact-SHA production matrix passed 22/22 through managed
+  Reverb, including native auth/CSRF, pagination, reconnect, media, search, logout, zero idle application
+  requests and the hibernation sleep signature.
 - **Direct-room deletion uses one policy.** Any current direct-room participant can delete it through
   either room route. This normalizes the previously divergent generic and namespaced HTTP decisions;
   the user-visible direct-room route already allowed the same capability.
