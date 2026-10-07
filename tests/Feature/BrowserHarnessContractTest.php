@@ -6,6 +6,62 @@ use Tests\TestCase;
 
 final class BrowserHarnessContractTest extends TestCase
 {
+    public function test_pr8_harness_is_committed_and_covers_livewire_routes_and_security_controls(): void
+    {
+        $path = base_path('tests/Browser/pr8-livewire-routes.mjs');
+        $source = file_get_contents($path);
+
+        $this->assertFileExists($path);
+        $this->assertStringContainsString('require.resolve("playwright"', $source);
+        $this->assertStringContainsString('process.env.PR8_HEADLESS !== "false"', $source);
+        $this->assertStringContainsString('process.env.PR8_PROFILE_ROOT', $source);
+        $this->assertStringContainsString('process.env.PR8_CANDIDATE', $source);
+        $this->assertStringContainsString('process.env.PR8_DATABASE_STAMP', $source);
+        $this->assertStringContainsString('process.env.PR8_QUEUE_STAMP', $source);
+        $this->assertStringContainsString('browser_user_agent: await admin.evaluate', $source);
+        $this->assertStringContainsString('context_model: "persistent"', $source);
+        $this->assertSame(2, substr_count($source, 'run_id: runId, provenance, states'));
+        $this->assertSame(3, substr_count($source, 'chromium.launchPersistentContext('));
+        $this->assertStringContainsString('const deadline = Date.now() + 30_000', $source);
+        $this->assertStringContainsString('getByTestId', $source);
+        $this->assertStringContainsString('bot api post update boost delete', $source);
+        $this->assertStringContainsString('search and personal history', $source);
+        $this->assertStringContainsString('bot edit and key rotation invalidates old URL', $source);
+        $this->assertStringContainsString('join signup with locked credential negative', $source);
+        $this->assertStringContainsString('non admin bot access denied', $source);
+        $this->assertStringContainsString('push registration test and cross-user protection', $source);
+        $this->assertStringContainsString('session transfer locked credential and confirmation', $source);
+        $this->assertStringContainsString('logout survives rejected unsubscribe and login again', $source);
+        $this->assertStringContainsString('PushSubscription.prototype.unsubscribe = async function', $source);
+        $this->assertStringContainsString('pr8-unsubscribe-rejection-executed', $source);
+        $this->assertStringContainsString('Rejected unsubscribe preserved the server session', $source);
+        $this->assertStringContainsString('url.pathname === "/account/bots"', $source);
+        $this->assertStringContainsString('bot delete', $source);
+        $this->assertStringContainsString('Join-code substitution did not fail loudly', $source);
+        $this->assertStringContainsString('Transfer-id substitution did not fail loudly', $source);
+        $this->assertStringContainsString('Cross-user push removal did not fail loudly', $source);
+        $this->assertStringContainsString('Console problems:', $source);
+        $this->assertStringContainsString('const expectedNegativeEvidence = []', $source);
+        $this->assertStringContainsString('activeNegativeControls.set(page, expectation)', $source);
+        $this->assertStringContainsString('status === expectation.status', $source);
+        $this->assertStringContainsString('expectation.matchesPath(sourcePath)', $source);
+        $this->assertStringContainsString('expected_negative_evidence: expectedNegativeEvidence', $source);
+        $this->assertStringContainsString('name: "join-code locked-property substitution"', $source);
+        $this->assertStringContainsString('name: "non-admin bot access"', $source);
+        $this->assertStringContainsString('name: "cross-user push removal"', $source);
+        $this->assertStringContainsString('name: "transfer-id locked-property substitution"', $source);
+        $this->assertSame(2, substr_count($source, 'status: 500'));
+        $this->assertSame(1, substr_count($source, 'status: 403'));
+        $this->assertSame(1, substr_count($source, 'status: 404'));
+        $this->assertStringContainsString('writeFileSync(outputPath', $source);
+        $this->assertStringContainsString('process.exitCode = 1', $source);
+        $this->assertStringNotContainsString('setInterval', $source);
+
+        foreach (['PR8_ADMIN_EMAIL', 'PR8_ADMIN_PASSWORD', 'PR8_JOIN_CODE'] as $credential) {
+            $this->assertStringContainsString($credential, $source);
+        }
+    }
+
     public function test_pr7_harness_is_committed_and_covers_every_sidebar_transition(): void
     {
         $path = base_path('tests/Browser/pr7-livewire-sidebar.mjs');

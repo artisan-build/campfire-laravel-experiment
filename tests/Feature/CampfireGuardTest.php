@@ -90,4 +90,14 @@ final class CampfireGuardTest extends TestCase
         $this->put('/session/transfers/'.$transfer)->assertRedirect()->assertCookie('session_token');
         $this->assertDatabaseHas('sessions', ['user_id' => $user->id]);
     }
+
+    public function test_logout_invalidates_the_current_session_and_cookie(): void
+    {
+        [$user] = $this->fixture();
+        $this->auth($user);
+
+        $this->delete('/session')->assertRedirect('/')->assertCookieExpired('session_token');
+
+        $this->assertDatabaseMissing('sessions', ['user_id' => $user->id]);
+    }
 }

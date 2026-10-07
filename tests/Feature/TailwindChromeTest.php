@@ -23,7 +23,7 @@ final class TailwindChromeTest extends TestCase
         $this->assertTestId($this->get('/session/new')->assertOk(), 'auth-sign-in');
         $transfer = $this->get('/session/transfers/test-created-transfer')->assertOk();
         $this->assertTestId($transfer, 'auth-transfer');
-        $transfer->assertSee('/session/transfers/test-created-transfer', false);
+        $transfer->assertSee('data-testid="transfer-form"', false)->assertSee('wire:submit="confirm"', false);
     }
 
     public function test_top_level_authenticated_surfaces_render_with_test_created_data(): void

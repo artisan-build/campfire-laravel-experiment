@@ -14,7 +14,7 @@ final class TransfersController extends Controller
 {
     public function show(string $id)
     {
-        return view('sessions.transfer', compact('id'));
+        return view('sessions.transfer', ['transferId' => $id]);
     }
 
     public function update(Request $r, string $id)

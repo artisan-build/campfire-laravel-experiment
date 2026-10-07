@@ -14,7 +14,7 @@ final class PeopleController extends Controller
 {
     public function firstRun()
     {
-        return DB::table('accounts')->exists() ? redirect('/') : view('users.signup', ['action' => '/first_run']);
+        return DB::table('accounts')->exists() ? redirect()->route('chat.root') : view('users.signup', ['firstRun' => true, 'joinCode' => '']);
     }
 
     public function provision(Request $r)
@@ -45,7 +45,7 @@ final class PeopleController extends Controller
     {
         abort_unless(hash_equals(DB::table('accounts')->value('join_code') ?? '', $code), 404);
         if ($r->isMethod('GET')) {
-            return view('users.signup', ['action' => '/join/'.$code]);
+            return view('users.signup', ['firstRun' => false, 'joinCode' => $code]);
         }$a = $r->validate(['user.name' => 'required|string', 'user.email_address' => 'required|email', 'user.password' => 'required|string']);
         $v = $a['user'];
         unset($v['password']);

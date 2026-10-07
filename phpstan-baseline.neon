@@ -55,18 +55,6 @@ parameters:
 			path: app/Support/Media.php
 
 		-
-			message: '#^Match expression does not handle remaining value\: string$#'
-			identifier: match.unhandled
-			count: 1
-			path: routes/web.php
-
-		-
-			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, int given\.$#'
-			identifier: argument.type
-			count: 1
-			path: routes/web.php
-
-		-
 			message: '#^Parameter \#1 \$pusher of class Illuminate\\Broadcasting\\Broadcasters\\PusherBroadcaster constructor expects Pusher\\Pusher, Mockery\\MockInterface given\.$#'
 			identifier: argument.type
 			count: 2

@@ -27,7 +27,7 @@ final class DeliverPush implements ShouldQueue
         if (! $keys) {
             return;
         }
-        $client = new WebPush(['VAPID' => ['subject' => config('campfire.vapid.subject'), 'publicKey' => $keys['publicKey'], 'privateKey' => $keys['privateKey']]], [], 10, ['curl' => [CURLOPT_RESOLVE => [parse_url($s['endpoint'], PHP_URL_HOST).':443:'.$ip]]]);
+        $client = new WebPush(['VAPID' => ['subject' => config('campfire.vapid.subject'), 'publicKey' => $keys['publicKey'], 'privateKey' => $keys['privateKey']]], [], 10, ['allow_redirects' => false, 'curl' => [CURLOPT_RESOLVE => [parse_url($s['endpoint'], PHP_URL_HOST).':443:'.$ip]]]);
         $this->payload['badge'] = DB::table('memberships')->where('user_id', $s['user_id'])->whereNotNull('unread_at')->count();
         $report = $client->sendOneNotification(Subscription::create(['endpoint' => $s['endpoint'], 'publicKey' => $s['p256dh_key'], 'authToken' => $s['auth_key']]), json_encode($this->payload));
         if ($report->isSubscriptionExpired()) {

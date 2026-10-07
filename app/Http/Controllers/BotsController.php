@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\BlobStorage;
 use App\Support\ChatEvents;
 use App\Support\MessageWriter;
+use App\Support\WebhookDestinations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -20,7 +21,7 @@ final class BotsController extends Controller
     {
         abort_unless($r->user()->role === 1, 403);
 
-        return view('bots.index', ['bots' => User::active()->where('role', 2)->get()]);
+        return view('bots.index');
     }
 
     public function form(Request $r, ?int $id = null)
@@ -28,13 +29,13 @@ final class BotsController extends Controller
         abort_unless($r->user()->role === 1, 403);
         $bot = $id ? User::active()->where('role', 2)->findOrFail($id) : null;
 
-        return view('bots.form', ['bot' => $bot, 'webhook' => $bot ? DB::table('webhooks')->where('user_id', $bot->id)->value('url') : null]);
+        return view('bots.form', ['botId' => $bot?->id]);
     }
 
     public function create(Request $r)
     {
         abort_unless($r->user()->role === 1, 403);
-        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => 'nullable|url:http,https']);
+        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => ['nullable', 'url:http,https', 'max:2048', app(WebhookDestinations::class)->validationRule()]]);
         $bot = DB::transaction(function () use ($a) {
             $v = $a['user'];
             $url = $v['webhook_url'] ?? null;
@@ -53,14 +54,14 @@ final class BotsController extends Controller
             app(BlobStorage::class)->attachTo('User', $bot->id, 'avatar', $r->file('user.avatar'));
         }
 
-        return redirect('/account/bots');
+        return redirect()->route('bots.index');
     }
 
     public function update(Request $r, int $id)
     {
         abort_unless($r->user()->role === 1, 403);
         $bot = User::active()->where('role', 2)->findOrFail($id);
-        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => 'nullable|url:http,https']);
+        $a = $r->validate(['user.name' => 'required|string', 'user.bio' => 'nullable|string', 'user.webhook_url' => ['nullable', 'url:http,https', 'max:2048', app(WebhookDestinations::class)->validationRule()]]);
         DB::transaction(function () use ($bot, $a) {
             $v = $a['user'];
             $url = $v['webhook_url'] ?? null;
@@ -77,7 +78,7 @@ final class BotsController extends Controller
             app(BlobStorage::class)->attachTo('User', $bot->id, 'avatar', $r->file('user.avatar'));
         }
 
-        return redirect('/account/bots');
+        return redirect()->route('bots.index');
     }
 
     public function resetKey(Request $r, int $id)
@@ -85,7 +86,7 @@ final class BotsController extends Controller
         abort_unless($r->user()->role === 1, 403);
         User::active()->where('role', 2)->findOrFail($id)->update(['bot_token' => Str::random(12)]);
 
-        return redirect('/account/bots');
+        return redirect()->route('bots.index');
     }
 
     public function destroy(Request $r, int $id)
@@ -94,7 +95,7 @@ final class BotsController extends Controller
         $bot = User::active()->where('role', 2)->findOrFail($id);
         $bot->deactivate();
 
-        return redirect('/account/bots');
+        return redirect()->route('bots.index');
     }
 
     public function boost(Request $r, int $room, string $key, int $id, ?int $boost = null)

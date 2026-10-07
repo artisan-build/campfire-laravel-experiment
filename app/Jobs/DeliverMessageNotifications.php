@@ -3,16 +3,20 @@
 namespace App\Jobs;
 
 use App\Models\Message;
+use App\Support\BoundedResponseStream;
 use App\Support\ChatEvents;
 use App\Support\MessageWriter;
 use App\Support\Presence;
 use App\Support\RichTextRenderer;
+use App\Support\WebhookDestinations;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 final class DeliverMessageNotifications implements ShouldQueue
 {
@@ -31,34 +35,56 @@ final class DeliverMessageNotifications implements ShouldQueue
         foreach ($this->webhooks ? $bots : [] as $bot) {
             if ($bot->id === $m->creator_id || ! $m->room->memberships()->where('user_id', $bot->id)->exists()) {
                 continue;
-            }$url = DB::table('webhooks')->where('user_id', $bot->id)->value('url');
+            }
+            $url = DB::table('webhooks')->where('user_id', $bot->id)->value('url');
             if (! $url) {
                 continue;
             }
+            $destinations = app(WebhookDestinations::class);
+            $destination = $destinations->resolve($url);
+            if ($destination === null) {
+                continue;
+            }
             $payload = ['user' => ['id' => $m->creator_id, 'name' => $m->creator->name], 'room' => ['id' => $m->room_id, 'name' => $m->room->name, 'path' => '/rooms/'.$m->room_id.'/'.$bot->id.'-'.$bot->bot_token.'/messages'], 'message' => ['id' => $m->id, 'body' => ['html' => $m->richText?->body ?? '', 'plain' => trim(str_replace('@'.$bot->name, '', $m->plainText()))], 'path' => '/rooms/'.$m->room_id.'/@'.$m->id]];
+            $path = tempnam(storage_path('framework/cache'), 'webhook-');
+            if ($path === false) {
+                throw new \RuntimeException('Unable to create webhook response file.');
+            }
+            $resource = fopen($path, 'w+b');
+            if ($resource === false) {
+                unlink($path);
+                throw new \RuntimeException('Unable to open webhook response file.');
+            }
+            $sink = new BoundedResponseStream(Utils::streamFor($resource));
             try {
-                $reply = Http::connectTimeout(7)->timeout(7)->withOptions(['allow_redirects' => false])->post($url, $payload);
+                $reply = Http::connectTimeout(7)->timeout(7)->withOptions($destinations->requestOptions($destination, $sink))->post($url, $payload);
                 if ($reply->status() === 200 && in_array(strtok($reply->header('Content-Type'), ';'), ['text/plain', 'text/html'])) {
-                    $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => $reply->body()]);
+                    $body = file_get_contents($path);
+                    if ($body === false) {
+                        throw new \RuntimeException('Unable to read webhook response file.');
+                    }
+                    $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => $body]);
                     app(ChatEvents::class)->created($created);
-                } elseif ($reply->header('Content-Type') && strlen($reply->body()) <= 20 * 1024 * 1024) {
+                } elseif ($reply->header('Content-Type')) {
                     $mime = strtok($reply->header('Content-Type'), ';');
                     $extensions = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf', 'audio/mpeg' => 'mp3', 'video/mp4' => 'mp4', 'application/json' => 'json', 'text/csv' => 'csv'];
                     if (isset($extensions[$mime])) {
-                        $path = tempnam(storage_path('framework/cache'), 'webhook-');
-                        try {
-                            file_put_contents($path, $reply->body());
-                            $file = new UploadedFile($path, 'attachment.'.$extensions[$mime], $mime, null, true);
-                            $created = app(MessageWriter::class)->create($m->room, $bot, ['attachment' => $file]);
-                            app(ChatEvents::class)->created($created);
-                        } finally {
-                            unlink($path);
-                        }
+                        $file = new UploadedFile($path, 'attachment.'.$extensions[$mime], $mime, null, true);
+                        $created = app(MessageWriter::class)->create($m->room, $bot, ['attachment' => $file]);
+                        app(ChatEvents::class)->created($created);
                     }
                 }
-            } catch (ConnectionException) {
-                $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => 'Failed to respond within 7 seconds']);
-                app(ChatEvents::class)->created($created);
+            } catch (Throwable $error) {
+                if (! $sink->exceeded()) {
+                    if (! $error instanceof ConnectionException) {
+                        throw $error;
+                    }
+                    $created = app(MessageWriter::class)->create($m->room, $bot, ['body' => 'Failed to respond within 7 seconds']);
+                    app(ChatEvents::class)->created($created);
+                }
+            } finally {
+                $sink->close();
+                unlink($path);
             }
         }
         $present = app(Presence::class)->inRoom($m->room_id);
