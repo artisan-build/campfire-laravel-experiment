@@ -1,10 +1,6 @@
 <?php
 
 return [
-    // PR9 removes this temporary rollback switch and the retained Turbo path. The Laravel-native
-    // JSON stream is the default and needs no installer or environment configuration.
-    'json_message_stream' => true,
-
     // Signing key for Campfire's own cookies and signed ids. Upstream required SECRET_KEY_BASE to be
     // supplied. It falls back to a value derived from APP_KEY, which Cloud generates, so a fresh
     // install needs no operator-supplied value. Setting SECRET_KEY_BASE still works and is what an

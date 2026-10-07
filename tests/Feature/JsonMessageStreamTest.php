@@ -8,7 +8,7 @@ use App\Models\Boost;
 use App\Models\Message;
 use App\Models\User;
 use App\Support\MessageWriter;
-use App\Support\RailsCrypto;
+use App\Support\SignedIdentifiers;
 use Tests\TestCase;
 
 final class JsonMessageStreamTest extends TestCase
@@ -47,8 +47,8 @@ final class JsonMessageStreamTest extends TestCase
         $head = $this->get('/session/new')->assertOk()->getContent();
         $source = file_get_contents(public_path('assets/campfire/message_stream.js'));
 
-        $this->assertStringContainsString('"campfire/message_stream"', file_get_contents(public_path('assets/campfire/application_json.js')));
-        $this->assertStringContainsString('/assets/campfire/message_stream.js', $head);
+        $this->assertStringContainsString('"./message_stream.js"', file_get_contents(public_path('assets/campfire/application_json.js')));
+        $this->assertStringContainsString('/assets/campfire/application_json.js', $head);
         $this->assertStringContainsString('Alpine.data("messageStream"', $source);
         $this->assertStringContainsString('echo.private(`rooms.${options.roomId}`)', $source);
         foreach (['message.posted', 'message.updated', 'message.deleted', 'boost.added', 'boost.removed'] as $event) {
@@ -62,7 +62,7 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertStringNotContainsString('refreshSidebar()', $source);
     }
 
-    public function test_room_page_always_mounts_the_livewire_sidebar_while_fallback_keeps_only_message_turbo_sources(): void
+    public function test_room_page_always_mounts_the_livewire_sidebar_without_turbo_sources(): void
     {
         [$author, $room] = $this->fixture();
         $this->auth($author);
@@ -74,12 +74,6 @@ final class JsonMessageStreamTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'data-testid="sidebar-rooms"'));
         $this->assertSame(1, substr_count($response->getContent(), 'wire:snapshot='));
 
-        config(['campfire.json_message_stream' => false]);
-        $this->get('/rooms/'.$room->id)->assertOk()
-            ->assertSee('data-testid="sidebar-rooms"', false)
-            ->assertSee('<turbo-echo-stream-source channel="rooms.'.$room->id.'"', false)
-            ->assertDontSee('<turbo-frame id="user_sidebar"', false)
-            ->assertDontSee('<turbo-echo-stream-source channel="users.'.$author->id.'.rooms"', false);
     }
 
     public function test_message_history_json_is_ordered_and_uses_the_complete_http_resource(): void
@@ -119,7 +113,7 @@ final class JsonMessageStreamTest extends TestCase
     {
         [$author, $room] = $this->fixture();
         $mentioned = User::create(['name' => 'Mention Target', 'role' => 0, 'status' => 0]);
-        $attachment = '<action-text-attachment sgid="'.app(RailsCrypto::class)->sgid($mentioned->id).'" content-type="application/vnd.campfire.mention"></action-text-attachment>';
+        $attachment = '<action-text-attachment sgid="'.app(SignedIdentifiers::class)->sgid($mentioned->id).'" content-type="application/vnd.campfire.mention"></action-text-attachment>';
         $message = app(MessageWriter::class)->create($room, $author, ['body' => '<p>Hello '.$attachment.'</p>']);
         $this->auth($author);
 

@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Membership;
 use App\Models\User;
-use App\Support\RailsCrypto;
+use App\Support\SignedIdentifiers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
@@ -60,7 +60,7 @@ final class CampfireGuardTest extends TestCase
         $token = 'old-session';
         $old = now()->subHours(2)->startOfSecond();
         DB::table('sessions')->insert(['token' => $token, 'user_id' => $user->id, 'last_active_at' => $old, 'created_at' => $old, 'updated_at' => $old]);
-        $this->withUnencryptedCookie('session_token', app(RailsCrypto::class)->signCookie('session_token', $token));
+        $this->withCookie('session_token', $token);
 
         $this->get('/rooms/'.$room->id, ['User-Agent' => 'guard-test'])->assertOk();
         $session = DB::table('sessions')->where('token', $token)->first();
@@ -86,7 +86,7 @@ final class CampfireGuardTest extends TestCase
         $encoded = rtrim(strtr(base64_encode($url), '+/', '-_'), '=');
         $this->get('/qr_code/'.$encoded)->assertOk()->assertHeader('Content-Type', 'image/svg+xml');
 
-        $transfer = app(RailsCrypto::class)->signedId($user->id, 'User', 'transfer', now()->addHour()->utc()->format('Y-m-d\TH:i:s.v\Z'));
+        $transfer = app(SignedIdentifiers::class)->signedId($user->id, 'User', 'transfer', now()->addHour()->utc()->format('Y-m-d\TH:i:s.v\Z'));
         $this->put('/session/transfers/'.$transfer)->assertRedirect()->assertCookie('session_token');
         $this->assertDatabaseHas('sessions', ['user_id' => $user->id]);
     }

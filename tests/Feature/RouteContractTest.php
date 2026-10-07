@@ -13,7 +13,6 @@ final class RouteContractTest extends TestCase
         [$user, $room] = $this->fixture();
 
         $this->assertSame(url('/rooms/'.$room->id), route('rooms.show', $room));
-        $this->assertSame(url('/rooms/'.$room->id.'/messages/918/edit'), route('messages.edit', ['room' => $room, 'id' => 918]));
         $this->assertSame(url('/users/'.$user->id), route('users.show', $user));
         $this->assertSame(url('/account/bots/731/edit'), route('bots.edit', ['id' => 731]));
     }

@@ -1,6 +1,5 @@
 <?php
 
-use App\Events\TurboStreamBroadcast;
 use App\Jobs\ReportRuntime;
 use App\Support\BlobStorage;
 use App\Support\FfmpegRuntime;
@@ -66,9 +65,7 @@ Artisan::command('campfire:provision-ffmpeg {--force}', function (): int {
  * credential, so it is safe to run anywhere and paste the output.
  */
 Artisan::command('campfire:doctor {--queue : Also report what a QUEUE WORKER resolved, which on Cloud is a different host}', function () {
-    $broadcastEncoding = config('campfire.json_message_stream')
-        ? ['format' => 'message-resource-json', 'variants' => ['complete', 'fetch-required']]
-        : TurboStreamBroadcast::encoding();
+    $broadcastEncoding = ['format' => 'message-resource-json', 'variants' => ['complete', 'fetch-required']];
     $rows = [
         ['instance', gethostname()],
         ['php', PHP_VERSION],

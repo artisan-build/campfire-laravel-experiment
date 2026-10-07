@@ -24,7 +24,7 @@ final class SessionAuthentication
 
         Cookie::queue(cookie(
             'session_token',
-            app(RailsCrypto::class)->signCookie('session_token', $token, now()->addYears(20)->format('Y-m-d\\TH:i:s.v\\Z')),
+            $token,
             60 * 24 * 365 * 20,
             '/',
             null,
@@ -39,7 +39,7 @@ final class SessionAuthentication
 
     public function stop(Request $request): void
     {
-        $token = app(RailsCrypto::class)->verifyCookie('session_token', $request->cookie('session_token'));
+        $token = $request->cookie('session_token');
         if (is_string($token)) {
             DB::table('sessions')->where('token', $token)->delete();
         }

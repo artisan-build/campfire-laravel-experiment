@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-final class RailsCrypto
+final class SignedIdentifiers
 {
     private ?string $cachedSecret = null;
 
@@ -24,51 +24,7 @@ final class RailsCrypto
         return str_replace(['<', '>', '&'], ['\\u003c', '\\u003e', '\\u0026'], json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR));
     }
 
-    public function signCookie(string $name, mixed $value, ?string $expires = null): string
-    {
-        $data = base64_encode($this->json(['_rails' => ['message' => base64_encode($this->json($value)), 'exp' => $expires, 'pur' => 'cookie.'.$name]]));
-
-        return $data.'--'.hash_hmac('sha1', $data, $this->key('signed cookie'));
-    }
-
-    public function verifyCookie(string $name, ?string $raw): mixed
-    {
-        if (! $raw) {
-            return null;
-        }
-        $parts = explode('--', $raw);
-        if (count($parts) !== 2 || ! hash_equals(hash_hmac('sha1', $parts[0], $this->key('signed cookie')), $parts[1])) {
-            return null;
-        }
-
-        return $this->unpack(base64_decode($parts[0], true), 'cookie.'.$name, true);
-    }
-
-    public function encryptCookie(string $name, mixed $value): string
-    {
-        $data = $this->json(['_rails' => ['message' => base64_encode($this->json($value)), 'exp' => null, 'pur' => 'cookie.'.$name]]);
-        $nonce = random_bytes(12);
-        $tag = '';
-        $encrypted = openssl_encrypt($data, 'aes-256-gcm', $this->key('authenticated encrypted cookie', 32), OPENSSL_RAW_DATA, $nonce, $tag);
-
-        return base64_encode($encrypted).'--'.base64_encode($nonce).'--'.base64_encode($tag);
-    }
-
-    public function decryptCookie(string $name, ?string $raw): mixed
-    {
-        if (! $raw || count($parts = explode('--', $raw)) !== 3) {
-            return null;
-        }
-        $decoded = array_map(fn ($p) => base64_decode($p, true), $parts);
-        if (in_array(false, $decoded, true) || strlen($decoded[1]) !== 12 || strlen($decoded[2]) !== 16) {
-            return null;
-        }
-        $plain = openssl_decrypt($decoded[0], 'aes-256-gcm', $this->key('authenticated encrypted cookie', 32), OPENSSL_RAW_DATA, $decoded[1], $decoded[2]);
-
-        return $this->unpack($plain, 'cookie.'.$name, true);
-    }
-
-    private function unpack(string|false $data, ?string $purpose, bool $cookie = false): mixed
+    private function unpack(string|false $data, ?string $purpose): mixed
     {
         if ($data === false) {
             return null;
@@ -78,9 +34,9 @@ final class RailsCrypto
         } catch (\JsonException) {
             return null;
         }
-        if (isset($value['_rails']) && (! $cookie || str_starts_with($data, '{"_rails":{"message":'))) {
+        if (isset($value['_rails'])) {
             $meta = $value['_rails'];
-            if ((isset($meta['pur']) ? $meta['pur'] !== $purpose : (! $cookie && $purpose !== null)) || (isset($meta['exp']) && strtotime($meta['exp']) <= now()->timestamp)) {
+            if ((isset($meta['pur']) ? $meta['pur'] !== $purpose : $purpose !== null) || (isset($meta['exp']) && strtotime($meta['exp']) <= now()->timestamp)) {
                 return null;
             }
             if (array_key_exists('data', $meta)) {

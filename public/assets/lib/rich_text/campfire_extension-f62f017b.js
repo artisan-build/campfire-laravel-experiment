@@ -1,5 +1,5 @@
-import * as Lexxy from "lexxy"
-import CiteNode from "lib/rich_text/cite_node"
+import * as Lexxy from "../../lexxy-a21f41d4.js"
+import CiteNode from "./cite_node-b4d2b89a.js"
 
 export default class CampfireRichTextExtension extends Lexxy.Extension {
   get allowedElements() {

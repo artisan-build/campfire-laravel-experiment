@@ -23,7 +23,7 @@
             @endforeach
             <x-ui.button href="{{ route('push.index', ['user' => 'me'], absolute: false) }}">Notifications on your devices</x-ui.button>
         </section>
-        @php($transferUrl = route('transfers.show', ['id' => app(\App\Support\RailsCrypto::class)->signedId($user->id, 'User', 'transfer', now()->addHours(4)->utc()->format('Y-m-d\TH:i:s.v\Z'))]))
+        @php($transferUrl = route('transfers.show', ['id' => app(\App\Support\SignedIdentifiers::class)->signedId($user->id, 'User', 'transfer', now()->addHours(4)->utc()->format('Y-m-d\TH:i:s.v\Z'))]))
         <section class="grid gap-4 border-t border-stone-200 pt-6 dark:border-stone-700" data-testid="settings-device-transfer">
             <div><h2 class="text-xl font-bold">Sign in on another device</h2><p class="text-sm text-stone-600 dark:text-stone-300">Treat this private link like a password. It expires in four hours.</p></div>
             <label class="sr-only" for="session_transfer_url">Private sign-in link</label><input type="text" id="session_transfer_url" value="{{ $transferUrl }}" readonly>

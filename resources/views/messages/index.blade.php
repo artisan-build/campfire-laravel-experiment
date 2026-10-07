@@ -1,1 +1,1 @@
-@foreach($messages as $message)@include('messages.message')@endforeach
+@foreach($messages as $message)@include('messages.stream_message')@endforeach

@@ -15,7 +15,7 @@ use App\Models\Membership;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\MessageWriter;
-use App\Support\RailsCrypto;
+use App\Support\SignedIdentifiers;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -42,12 +42,9 @@ final class Pr8LivewireTest extends TestCase
         Livewire::actingAs($user)->test(SearchMessages::class)
             ->set('query', 'boundary needle')
             ->call('search')
-            ->assertSeeHtml('data-controller="search-results"')
-            ->assertSeeHtml('data-search-results-target="messages"')
-            ->assertSeeHtml('data-search-results-me-class="message--me"')
-            ->assertSeeHtml('data-search-results-threaded-class="message--threaded"')
-            ->assertSeeHtml('data-search-results-mentioned-class="message--mentioned"')
-            ->assertSeeHtml('data-search-results-formatted-class="message--formatted"')
+            ->assertSeeHtml('data-testid="search-results"')
+            ->assertSeeHtml('data-testid="search-form"')
+            ->assertSeeHtml('data-testid="search-result-list"')
             ->assertSee('Boundary needle visible')
             ->assertDontSee('Boundary needle hidden')
             ->assertDontSee('other-history')
@@ -203,7 +200,7 @@ final class Pr8LivewireTest extends TestCase
         $this->assertSame(404, $joinSubmitError->getStatusCode());
         $this->assertDatabaseMissing('users', ['email_address' => 'injected@example.test']);
 
-        $transferId = app(RailsCrypto::class)->signedId($user->id, 'User', 'transfer', now()->addHour()->utc()->format('Y-m-d\TH:i:s.v\Z'));
+        $transferId = app(SignedIdentifiers::class)->signedId($user->id, 'User', 'transfer', now()->addHour()->utc()->format('Y-m-d\TH:i:s.v\Z'));
         $transfer = Livewire::test(SessionTransfer::class, ['transferId' => $transferId]);
         $transferError = $this->capture(fn () => $transfer->set('transferId', 'substituted'));
         $this->assertInstanceOf(CannotUpdateLockedPropertyException::class, $transferError);
@@ -249,7 +246,7 @@ final class Pr8LivewireTest extends TestCase
         $this->assertSame(0, $joined->role);
         $this->assertDatabaseHas('sessions', ['user_id' => $joined->id]);
 
-        $transferId = app(RailsCrypto::class)->signedId($joined->id, 'User', 'transfer', now()->addHour()->utc()->format('Y-m-d\TH:i:s.v\Z'));
+        $transferId = app(SignedIdentifiers::class)->signedId($joined->id, 'User', 'transfer', now()->addHour()->utc()->format('Y-m-d\TH:i:s.v\Z'));
         Livewire::test(SessionTransfer::class, ['transferId' => $transferId])->call('confirm')->assertRedirect(route('chat.root'));
         $this->assertSame(2, DB::table('sessions')->where('user_id', $joined->id)->count());
     }

@@ -67,7 +67,7 @@ final class RichTextRenderer
                 return '';
             }
             $sgid = $node->getAttribute('sgid');
-            $gid = app(RailsCrypto::class)->verifySgid($sgid);
+            $gid = app(SignedIdentifiers::class)->verifySgid($sgid);
             if ($gid && $gid['model'] === 'User') {
                 $u = User::find($gid['id']);
                 if (! $u) {

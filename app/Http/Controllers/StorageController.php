@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Support\Assets;
 use App\Support\BlobStorage;
 use App\Support\Media;
-use App\Support\RailsCrypto;
+use App\Support\SignedIdentifiers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -21,7 +21,7 @@ final class StorageController extends Controller
      */
     public function blob(Request $r, string $signed, string $filename)
     {
-        $id = app(RailsCrypto::class)->verifyId($signed, 'ActiveStorage::Blob', 'blob_id');
+        $id = app(SignedIdentifiers::class)->verifyId($signed, 'ActiveStorage::Blob', 'blob_id');
         $blob = Blob::findOrFail($id);
         $storage = app(BlobStorage::class);
         abort_unless($storage->disk()->exists($storage->path($blob)), 404);
@@ -37,7 +37,7 @@ final class StorageController extends Controller
 
     public function avatar(Request $r, string $user)
     {
-        $id = app(RailsCrypto::class)->verifyId($user, 'User', 'avatar');
+        $id = app(SignedIdentifiers::class)->verifyId($user, 'User', 'avatar');
         $u = User::findOrFail($id);
         $blob = app(BlobStorage::class)->attached('User', $u->id, 'avatar');
         if ($blob && in_array($blob->content_type, Media::IMAGE_TYPES, true)) {
@@ -67,8 +67,8 @@ final class StorageController extends Controller
 
     public function representation(Request $r, string $signed, string $variation, string $filename)
     {
-        $b = Blob::findOrFail(app(RailsCrypto::class)->verifyId($signed, 'ActiveStorage::Blob', 'blob_id'));
-        $v = app(RailsCrypto::class)->appVerify($variation, 'variation');
+        $b = Blob::findOrFail(app(SignedIdentifiers::class)->verifyId($signed, 'ActiveStorage::Blob', 'blob_id'));
+        $v = app(SignedIdentifiers::class)->appVerify($variation, 'variation');
         abort_unless(is_array($v), 404);
         $path = app(Media::class)->variant($b, $v);
 
@@ -119,15 +119,15 @@ final class StorageController extends Controller
     {
         $a = $r->validate(['blob.filename' => 'required|string', 'blob.byte_size' => 'required|integer|min:0|max:104857600', 'blob.checksum' => 'required|string', 'blob.content_type' => 'nullable|string']);
         $b = Blob::create($a['blob'] + ['key' => bin2hex(random_bytes(14)), 'metadata' => '{}', 'service_name' => 'campfire', 'created_at' => now()]);
-        $signed = app(RailsCrypto::class)->signedId($b->id, 'ActiveStorage::Blob', 'blob_id');
-        $upload = app(RailsCrypto::class)->appSign(['key' => $b->key, 'content_type' => $b->content_type, 'content_length' => $b->byte_size, 'checksum' => $b->checksum, 'service_name' => 'campfire'], 'blob_token', now()->addMinutes(5)->format('Y-m-d\\TH:i:s.v\\Z'));
+        $signed = app(SignedIdentifiers::class)->signedId($b->id, 'ActiveStorage::Blob', 'blob_id');
+        $upload = app(SignedIdentifiers::class)->appSign(['key' => $b->key, 'content_type' => $b->content_type, 'content_length' => $b->byte_size, 'checksum' => $b->checksum, 'service_name' => 'campfire'], 'blob_token', now()->addMinutes(5)->format('Y-m-d\\TH:i:s.v\\Z'));
 
         return response()->json($b->toArray() + ['signed_id' => $signed, 'direct_upload' => ['url' => url('/rails/active_storage/disk/'.$upload), 'headers' => ['Content-Type' => $b->content_type, 'Content-MD5' => $b->checksum]]]);
     }
 
     public function disk(Request $r, string $signed)
     {
-        $token = app(RailsCrypto::class)->appVerify($signed, 'blob_token');
+        $token = app(SignedIdentifiers::class)->appVerify($signed, 'blob_token');
         abort_unless(is_array($token) && ($token['service_name'] ?? '') === 'campfire', 404);
         $b = Blob::where('key', $token['key'] ?? null)->firstOrFail();
         $data = $r->getContent();
@@ -140,11 +140,11 @@ final class StorageController extends Controller
 
     public function diskDownload(Request $r, string $signed, string $filename)
     {
-        $token = app(RailsCrypto::class)->appVerify($signed, 'blob_key');
+        $token = app(SignedIdentifiers::class)->appVerify($signed, 'blob_key');
         abort_unless(is_array($token) && ($token['service_name'] ?? '') === 'campfire', 404);
         $b = Blob::where('key', $token['key'] ?? null)->firstOrFail();
 
-        return $this->blob($r, app(RailsCrypto::class)->signedId($b->id, 'ActiveStorage::Blob', 'blob_id'), $filename);
+        return $this->blob($r, app(SignedIdentifiers::class)->signedId($b->id, 'ActiveStorage::Blob', 'blob_id'), $filename);
     }
 
     public function logo()

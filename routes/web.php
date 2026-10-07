@@ -12,6 +12,7 @@ use App\Http\Controllers\RoomsController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\StorageController;
 use App\Http\Controllers\TransfersController;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/up', [HealthController::class, 'show'])->name('health');
@@ -26,9 +27,9 @@ Route::match(['GET', 'POST'], '/join/{code}', [PeopleController::class, 'join'])
 Route::get('/users/{user}/avatar', [StorageController::class, 'avatar'])->name('users.avatar');
 Route::get('/account/logo', [StorageController::class, 'logo'])->name('account.logo');
 Route::get('/rails/active_storage/blobs/redirect/{signed}/{filename}', [StorageController::class, 'blob'])->name('storage.blob');
-Route::put('/rails/active_storage/disk/{signed}', [StorageController::class, 'disk'])->name('storage.disk.store');
+Route::put('/rails/active_storage/disk/{signed}', [StorageController::class, 'disk'])->withoutMiddleware(PreventRequestForgery::class)->name('storage.disk.store');
 Route::get('/rails/active_storage/disk/{signed}/{filename}', [StorageController::class, 'diskDownload'])->name('storage.disk.show');
-Route::match(['GET', 'POST', 'PATCH', 'PUT', 'DELETE'], '/rooms/{room}/{key}/messages/{id?}', [BotsController::class, 'api'])->whereNumber(['room', 'id'])->name('bots.api');
+Route::match(['GET', 'POST', 'PATCH', 'PUT', 'DELETE'], '/rooms/{room}/{key}/messages/{id?}', [BotsController::class, 'api'])->withoutMiddleware(PreventRequestForgery::class)->whereNumber(['room', 'id'])->name('bots.api');
 Route::get('/webmanifest.json', [LinksController::class, 'manifest'])->name('manifest.json');
 Route::get('/webmanifest', [LinksController::class, 'manifest'])->name('manifest');
 Route::get('/service-worker', [LinksController::class, 'worker'])->name('service-worker');
@@ -36,7 +37,7 @@ Route::get('/qr_code/{id}', [TransfersController::class, 'qr'])->name('qr-code')
 Route::get('/session/transfers/{id}', [TransfersController::class, 'show'])->name('transfers.show');
 Route::match(['PATCH', 'PUT'], '/session/transfers/{id}', [TransfersController::class, 'update'])->name('transfers.update');
 Route::get('/rails/active_storage/representations/redirect/{signed}/{variation}/{filename}', [StorageController::class, 'representation'])->name('storage.representation');
-Route::match(['POST', 'DELETE'], '/rooms/{room}/{key}/messages/{id}/boosts/{boost?}', [BotsController::class, 'boost'])->whereNumber(['room', 'id', 'boost'])->name('bots.boost');
+Route::match(['POST', 'DELETE'], '/rooms/{room}/{key}/messages/{id}/boosts/{boost?}', [BotsController::class, 'boost'])->withoutMiddleware(PreventRequestForgery::class)->whereNumber(['room', 'id', 'boost'])->name('bots.boost');
 Route::middleware('campfire.auth')->group(function () {
     Route::delete('/users/{user}/avatar', [StorageController::class, 'deleteAvatar'])->name('users.avatar.destroy');
     Route::delete('/account/logo', [StorageController::class, 'deleteLogo'])->name('account.logo.destroy');
@@ -49,7 +50,6 @@ Route::middleware('campfire.auth')->group(function () {
     Route::get('/rooms/{room}/messages', [ChatController::class, 'messages'])->whereNumber('room')->name('messages.index');
     Route::post('/rooms/{room}/messages', [ChatController::class, 'create'])->whereNumber('room')->name('messages.store');
     Route::get('/rooms/{room}/messages/{id}', [ChatController::class, 'show'])->whereNumber(['room', 'id'])->name('messages.show');
-    Route::get('/rooms/{room}/messages/{id}/edit', [ChatController::class, 'edit'])->whereNumber(['room', 'id'])->name('messages.edit');
     Route::match(['PATCH', 'PUT'], '/rooms/{room}/messages/{id}', [ChatController::class, 'update'])->whereNumber(['room', 'id'])->name('messages.update');
     Route::delete('/rooms/{room}/messages/{id}', [ChatController::class, 'destroy'])->whereNumber(['room', 'id'])->name('messages.destroy');
     Route::get('/rooms/{room}/refresh', [ChatController::class, 'refresh'])->whereNumber('room')->name('rooms.refresh');
@@ -77,8 +77,6 @@ Route::middleware('campfire.auth')->group(function () {
     Route::post('/account/join_code', [PeopleController::class, 'resetJoinCode'])->name('account.join-code.reset');
     Route::match(['PATCH', 'PUT', 'DELETE'], '/account/users/{id}', [PeopleController::class, 'member'])->whereNumber('id')->name('account.members.update');
     Route::match(['POST', 'DELETE'], '/users/{id}/ban', [PeopleController::class, 'ban'])->whereNumber('id')->name('users.ban');
-    Route::get('/messages/{id}/boosts', [BoostsController::class, 'index'])->whereNumber('id')->name('boosts.index');
-    Route::get('/messages/{id}/boosts/new', [BoostsController::class, 'new'])->whereNumber('id')->name('boosts.new');
     Route::post('/messages/{id}/boosts', [BoostsController::class, 'create'])->whereNumber('id')->name('boosts.store');
     Route::delete('/messages/{id}/boosts/{boost}', [BoostsController::class, 'destroy'])->whereNumber(['id', 'boost'])->name('boosts.destroy');
     Route::get('/account/bots', [BotsController::class, 'index'])->name('bots.index');

@@ -6,6 +6,35 @@ use Tests\TestCase;
 
 final class BrowserHarnessContractTest extends TestCase
 {
+    public function test_pr9_final_harness_covers_native_security_realtime_media_idle_and_sleep(): void
+    {
+        $source = file_get_contents(base_path('tests/Browser/pr5-json-stream.mjs'));
+
+        foreach ([
+            'login and native CSRF rejection',
+            'presence subscription',
+            'post and optimistic reconciliation',
+            'unread sidebar membership and app badge',
+            'typing start stop and expiry',
+            'keyboard edit and focus restoration',
+            'delete propagation',
+            'boost add remove and failed rollback',
+            'image lightbox and video poster',
+            'search',
+            'kept-awake latency control',
+            'ten-minute zero-application-request idle and sleep latency signature',
+            'logout invalidates the session',
+        ] as $criterion) {
+            $this->assertStringContainsString($criterion, $source);
+        }
+
+        $this->assertStringContainsString('const observationMs = 600_000', $source);
+        $this->assertStringContainsString('if (status !== 419)', $source);
+        $this->assertStringContainsString('applicationRequests.length', $source);
+        $this->assertStringContainsString('signature_delta_ms', $source);
+        $this->assertStringContainsString('presence_frames: presenceFrames', $source);
+    }
+
     public function test_pr8_harness_is_committed_and_covers_livewire_routes_and_security_controls(): void
     {
         $path = base_path('tests/Browser/pr8-livewire-routes.mjs');
@@ -125,7 +154,13 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('const phone = await browser.newContext', $source);
         $this->assertStringContainsString('writeFileSync(outputPath', $source);
         $this->assertStringNotContainsString('writeFileSync(outputPath, payload', $source);
-        $this->assertStringContainsString('page.locator(\'form[action="/session"]\').getByRole("button", { name: "Sign in", exact: true }).click()', $source);
+        $this->assertStringContainsString('const form = page.getByTestId("sign-in-form")', $source);
+        $this->assertStringContainsString('form.locator(\'input[type="email"]\').fill(email)', $source);
+        $this->assertStringContainsString('form.locator(\'input[type="password"]\').fill(password)', $source);
+        $this->assertStringContainsString('form.getByRole("button", { name: "Sign in" }).click()', $source);
+        $this->assertStringNotContainsString('form[action="/session"]', $source);
+        $this->assertStringNotContainsString('input[name="email_address"]', $source);
+        $this->assertStringNotContainsString('input[name="password"]', $source);
         $this->assertStringNotContainsString('page.locator(\'button[type="submit"]\').click()', $source);
         $this->assertStringContainsString('function lexxyEditable(scope, editorSelector = "lexxy-editor")', $source);
         $this->assertStringContainsString('lexxyEditable(page, "#message_body").evaluate(', $source);

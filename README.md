@@ -26,15 +26,19 @@ breaks all three. Each was replaced with the first-party Laravel answer rather t
 | Web Push keys | `storage/vapid.json`, generated per host | generated once onto the account row, shared by every replica |
 | Realtime | `bin/cable`, a Workerman Action Cable server fed by a local append-only `storage/events.log` | Laravel broadcasting over Reverb; the file, the server and Workerman are deleted |
 | Channel authorization | signed Turbo stream names, because the client named a channel *class* | `routes/channels.php`; the client names the channel and the server decides |
-| Typing / presence | messages up the Action Cable socket | small HTTP endpoints, because a managed Reverb cannot call the app back |
-| Sessions | `file` driver on local disk | `cookie` — shared across replicas with no store to keep awake |
+| Typing / presence | messages up the Action Cable socket | private and presence channels over managed Reverb; no application polling |
+| Authentication cookie | Rails-encrypted `_campfire_session` | Laravel-encrypted `session_token`; invalid or plaintext values are rejected |
+| CSRF | Rails-compatible token encoding and custom middleware | Laravel's `PreventRequestForgery` middleware and standard Blade/Livewire tokens |
+| Laravel session state | `file` driver on local disk | `cookie` — shared across replicas with no store to keep awake |
 | Cache | `file` driver on local disk | `database`, on the same serverless Postgres |
 | Queue | SQLite file + an in-container worker | the configured queue; on Cloud, the managed queue |
 
 Room messages now use a page-owned Alpine stream over Laravel Echo. Initial history is rendered by
 Blade; posts, edits, deletes and boosts use the same `MessageResource` JSON contract over HTTP and
-Reverb, including optimistic reconciliation by `client_message_id`. The default import map does not
-load Turbo, Action Cable compatibility, Turbo stream rendering, or the message-only Stimulus stack.
+Reverb, including optimistic reconciliation by `client_message_id`. The committed entry point uses
+relative ES-module imports and does not ship an import map, Turbo, Action Cable compatibility, Turbo
+stream rendering, or the old Stimulus controller stack. Lexxy and its rich-text extension remain as
+an isolated module graph.
 
 The room sidebar and room, involvement, profile and account forms use nodeless Livewire 4. The
 sidebar derives its three private Echo listeners from the authenticated user and rerenders
@@ -43,23 +47,19 @@ Search, bot administration, device push subscriptions, signup, login, logout and
 confirmation are also Livewire surfaces, with browser-only push and logout work owned by Alpine.
 Normal Blade links and forms generate named Laravel routes; the public credential-in-path bot API
 and the `/rails/active_storage/...` upload URLs retain their published shapes.
-Laravel's request guard now
-resolves the existing Campfire session into the same active human for controllers, Blade, Livewire
-and broadcasting, while room/message policies re-authorize each mutation. Livewire owns the single
-Alpine runtime; Campfire providers register before `Livewire.start()`. The existing Rails-compatible
-cookie and CSRF encoding deliberately remains in place until the later session cutover.
+Laravel's request guard resolves the encrypted `session_token` into the same active human for
+controllers, Blade, Livewire and broadcasting, while room/message policies re-authorize each
+mutation. Laravel's encrypted-cookie middleware owns the cookie boundary and
+`PreventRequestForgery` owns CSRF rejection. Livewire owns the single Alpine runtime; Campfire
+providers register before `Livewire.start()`.
 
 That cutover deliberately gives up Turbo prefetch, view transitions and restoration visits. Normal
-links and forms continue to use browser navigation. A temporary `config('campfire.json_message_stream')`
-rollback switch defaults to the JSON implementation and retains the old Turbo entry point, stream
-consumer, message controllers/models and rendered broadcast path for PR9 to delete. The retained path
-is not imported, subscribed, or broadcast while the default is active.
+links and forms use full browser navigation; there is no Turbo rollback path.
 
 This fork supports **fresh installs**, not migration from an existing Rails database or uploads
-directory. Rails cookie and CSRF formats remain the active implementation while the frontend is
-migrated, but they are no longer compatibility guarantees: Laravel-native sessions, encryption and
-CSRF are the approved direction. Signed IDs still back upload/avatar URLs, and SGIDs are stored in
-rich text, so those formats remain intentionally supported.
+directory. Rails session-cookie and CSRF formats are not compatibility contracts. Existing Rails
+signed IDs still back upload, avatar and transfer URLs, and Rails SGIDs remain embedded in stored
+rich text, so those two formats remain intentionally readable and are still generated identically.
 
 ## Deploying to Laravel Cloud
 
@@ -239,14 +239,11 @@ committed asset when frontend source changes.
 - **Search tokenises differently.** Postgres keeps `pixel.png` whole where FTS5's porter tokenizer
   split it, so the indexed text and the query both go through one normaliser
   (`app/Support/Search.php`). Punctuation is not searchable.
-- **Room mutations use bounded JSON.** The default frontend broadcasts `MessageResource` data for
+- **Room mutations use bounded JSON.** The frontend broadcasts `MessageResource` data for
   posts and edits plus small JSON delete/boost events. Oversized resources carry a bounded sanitized
   preview and an HTTP fetch-required marker; active frames never use Turbo HTML, gzip or pointers.
-  The temporary `campfire.json_message_stream=false` rollback path retains those legacy encodings
-  until PR9, but it is neither imported nor broadcast while the default is active.
-- **Turbo navigation behavior is temporarily absent.** The default nodeless Alpine path does not
-  provide Turbo prefetch, view transitions or restoration visits. The false-flag rollback path keeps
-  them until PR9.
+- **Turbo navigation behavior is absent.** The nodeless Alpine/Livewire path does not provide Turbo
+  prefetch, view transitions or restoration visits; links and forms use normal browser navigation.
 - **The JSON stream and Livewire forms are browser-verified.** The committed PR5 two-context harness
   passed its managed-Reverb production matrix after the edit-reconciliation hotfix. The PR6 browser
   matrix verifies persisted room create/rename/open↔closed changes, involvement, profile/avatar and
@@ -259,9 +256,10 @@ committed asset when frontend source changes.
   the user-visible direct-room route already allowed the same capability.
 - **Message presentation residue remains.** Socket-created `/play` messages do not synthesize the
   legacy sound widget or autoplay; local timestamps lack the old full-timestamp hover text; custom
-  boosts use the native prompt; and some inactive legacy data hooks remain for rollback.
-- **Presence is HTTP-driven.** A managed Reverb cannot call the app, so the browser reports presence
-  and a stale entry expires after 60 seconds, as it already did upstream.
+  boosts use the native prompt; and some inactive legacy data hooks remain in the markup.
+- **Presence is Reverb-owned.** Tabs join a managed-Reverb presence channel and make no periodic
+  application request. The final committed browser harness includes a ten-minute zero-request idle
+  observation and sleep-latency/kept-awake control, but that live gate is not claimed here.
 - `campfire:backup` is gone. Cloud snapshots Postgres and the bucket holds the uploads.
 
 The original upstream benchmarks are not reproduced here; they measured a different storage engine

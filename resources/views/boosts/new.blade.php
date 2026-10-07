@@ -1,1 +1,0 @@
-<turbo-frame id="new_boost_message_{{ $message->client_message_id }}"><form action="{{ route('boosts.store', $message, absolute: false) }}" method="post">@csrf<label>Boost<input name="boost[content]" maxlength="16" required></label><button>Boost</button></form></turbo-frame>

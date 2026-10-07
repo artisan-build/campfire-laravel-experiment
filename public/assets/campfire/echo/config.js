@@ -1,5 +1,5 @@
-import Echo from "campfire/vendor/laravel-echo"
-import Pusher from "campfire/vendor/pusher-js"
+import Echo from "../vendor/laravel-echo.js"
+import Pusher from "../vendor/pusher-js.js"
 
 // One Echo instance for the whole page, exactly as there was one Action Cable consumer.
 let echo = null

@@ -10,5 +10,5 @@
             <x-ui.button type="button" wire:click="clearHistory" variant="danger">Clear history</x-ui.button>
         </section>
     @endif
-    <div id="search-results-list" class="messages searches__results flex-1" data-controller="search-results" data-search-results-target="messages" data-search-results-me-class="message--me" data-search-results-threaded-class="message--threaded" data-search-results-mentioned-class="message--mentioned" data-search-results-formatted-class="message--formatted" data-testid="search-result-list">@include('messages.index')</div>
+    <div id="search-results-list" class="messages searches__results flex-1" data-testid="search-result-list">@include('messages.index')</div>
 </div>

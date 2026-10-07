@@ -70,15 +70,7 @@ final class ChatController extends Controller
     {
         $m = $this->findRoom($r, $room)->messages()->presentation()->findOrFail($id);
 
-        return $r->expectsJson() ? response()->json((new MessageResource($m))->resolve(new Request)) : view('messages.show', ['message' => $m]);
-    }
-
-    public function edit(Request $r, int $room, int $id)
-    {
-        $m = $this->findRoom($r, $room)->messages()->presentation()->findOrFail($id);
-        Gate::authorize('update', $m);
-
-        return view('messages.edit', ['message' => $m]);
+        return response()->json((new MessageResource($m))->resolve(new Request));
     }
 
     public function create(Request $r, int $room)
@@ -86,15 +78,13 @@ final class ChatController extends Controller
         $room = $this->findRoom($r, $room);
         $a = $r->validate(['message' => 'required|array', 'message.body' => 'nullable|string', 'message.client_message_id' => 'nullable|string|max:255', 'message.attachment' => 'nullable']);
         $m = app(MessageWriter::class)->create($room, $r->user(), $r->hasFile('message.attachment') ? array_merge($a['message'], ['attachment' => $r->file('message.attachment')]) : $a['message'], true);
-        $stream = app(ChatEvents::class)->created($m);
+        app(ChatEvents::class)->created($m);
 
         if ($r->expectsJson()) {
             return response()->json((new MessageResource($m))->resolve(new Request), 201);
         }
 
-        return config('campfire.json_message_stream')
-            ? redirect('/rooms/'.$room->id, 303)
-            : response($stream, 200)->header('Content-Type', 'text/vnd.turbo-stream.html; charset=utf-8');
+        return redirect('/rooms/'.$room->id, 303);
     }
 
     public function update(Request $r, int $room, int $id)
@@ -111,15 +101,13 @@ final class ChatController extends Controller
     {
         $m = $this->findRoom($r, $room)->messages()->findOrFail($id);
         Gate::authorize('delete', $m);
-        $s = app(ChatEvents::class)->delete($m);
+        app(ChatEvents::class)->delete($m);
 
         if ($r->expectsJson()) {
             return response()->noContent();
         }
 
-        return config('campfire.json_message_stream')
-            ? redirect('/rooms/'.$room, 303)
-            : response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
+        return redirect('/rooms/'.$room, 303);
     }
 
     public function sidebar(Request $r)
@@ -158,20 +146,9 @@ final class ChatController extends Controller
         $new = $room->messages()->presentation()->where('created_at', '>', $since)->orderBy('created_at')->limit(40)->get();
         $updated = $room->messages()->presentation()->whereNotIn('id', $new->pluck('id'))->where('updated_at', '>', $since)->orderByDesc('created_at')->limit(40)->get()->reverse();
 
-        if ($r->expectsJson()) {
-            return response()->json($new->concat($updated)->unique('id')->sortBy('created_at')->values()->map(
-                fn (Message $message) => (new MessageResource($message))->resolve(new Request),
-            ));
-        }
-
-        $s = '';
-        foreach ($new as $m) {
-            $s .= $this->stream('append', 'messages_room_'.$room->id, view('messages.message', ['message' => $m])->render());
-        }foreach ($updated as $m) {
-            $s .= $this->stream('replace', 'message_'.$m->client_message_id, view('messages.message', ['message' => $m])->render());
-        }
-
-        return response($s)->header('Content-Type', 'text/vnd.turbo-stream.html');
+        return response()->json($new->concat($updated)->unique('id')->sortBy('created_at')->values()->map(
+            fn (Message $message) => (new MessageResource($message))->resolve(new Request),
+        ));
     }
 
     /**
@@ -192,10 +169,5 @@ final class ChatController extends Controller
     public function findRoom(Request $r, int $id): Room
     {
         return $r->user()->rooms()->findOrFail($id);
-    }
-
-    public function stream(string $action, string $target, string $html): string
-    {
-        return '<turbo-stream action="'.e($action).'" target="'.e($target).'"><template>'.$html.'</template></turbo-stream>';
     }
 }
