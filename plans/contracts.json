@@ -1,20 +1,18 @@
 {
   "reference_revision": "659f95748a115a360a37db9bf80a5361a560e14f",
   "runtime": "Laravel 13 / PHP 8.4",
-  "ui_bar": "Laravel-native Alpine message stream and Livewire settings/sidebar/search/auth/bots/push active and PR8 branch-head verified; PR9 session/CSRF/encryption cleanup pending",
+  "ui_bar": "Laravel-native Alpine/Echo message stream and Livewire settings/sidebar/search/auth/bots/push active; relative-module frontend and Laravel cookie/CSRF cutover complete, final PR9 live gate pending",
   "contracts": {
     "schema": {
       "status": "pending"
     },
     "sessions": {
-      "status": "superseded",
-      "superseded_by": "Laravel-native frontend plan section 3.2 and PR9",
-      "evidence": "Laravel's request guard resolves the existing Rails-compatible Campfire session into the same active human for HTTP, Blade, Livewire and broadcasting. Real Livewire endpoint probes reject missing, banned, bot and replayed sessions without mutation. Cookie compatibility remains active until PR9; signed-id and sgid formats are retained separately."
+      "status": "verified",
+      "evidence": "Laravel encrypted-cookie middleware owns session_token; encrypted authentication, plaintext rejection, login issuance, logout expiry and invalid-session behavior are focused-test verified. Exempting session_token from encryption turns the named cookie-boundary test red. Rails _campfire_session production is removed."
     },
     "csrf": {
-      "status": "superseded",
-      "superseded_by": "Laravel-native frontend plan section 3.2 and PR9",
-      "evidence": "Rails CSRF compatibility remains the active implementation until the frontend migration reaches PR9, but Laravel-native CSRF is the approved contract."
+      "status": "verified",
+      "evidence": "Laravel PreventRequestForgery is the web CSRF contract. Focused production-environment probing returns 419 without a token; exempting POST /session turns that named test red. Signed upload PUT and credential-in-path bot routes retain explicit route-level exemptions."
     },
     "rooms": {
       "status": "verified",
@@ -26,14 +24,19 @@
     },
     "json_message_stream": {
       "status": "verified",
-      "evidence": "Focused PHPUnit verifies the active Alpine/Echo bootstrap, five-event wiring, authoritative reconnect, canonical editable rich text, JSON mutation contracts, resource schema, authorization and rollback isolation. The committed two-user browser harness and exact managed-Reverb production matrix pass after the edit-reconciliation hotfix."
+      "evidence": "Focused PHPUnit verifies the Alpine/Echo bootstrap, five-event wiring, authoritative reconnect, canonical editable rich text, JSON mutation contracts, resource schema and authorization. The Turbo rollback flag, rendered stream branches and obsolete public Rails module graph are removed; the retained entry point uses relative modules. The prior two-user browser harness and exact managed-Reverb production matrix passed after the edit-reconciliation hotfix."
     },
     "livewire_forms": {
       "status": "verified",
       "evidence": "Herd PHP 8.5/PostgreSQL tests, semantic mutation proof, real Livewire endpoint replay probes and fresh browser runs verify locked component context, server-side room-kind transition authorization, room/direct-room flows, involvement, profile/avatar and account persistence, one Alpine runtime and a clean console."
     },
     "richtext": {
-      "status": "pending"
+      "status": "partially_verified",
+      "evidence": "Lexxy and its Campfire extension remain isolated in the relative-module graph. Existing Rails SGIDs embedded in stored mention bodies remain readable and generated identically; disabling SGID verification turns the named Rails-golden test red. Broader rich-text browser parity remains pending."
+    },
+    "signed_identifiers": {
+      "status": "verified",
+      "evidence": "Rails signed-id formats used by blob, avatar and transfer URLs and SGIDs stored in rich text remain readable and generated identically. Focused golden/boundary tests pass; bypassing signed-id signature/purpose validation and disabling SGID verification each turns its named focused test red. Cookie cryptography is not part of this retained abstraction."
     },
     "sidebar": {
       "status": "verified",
@@ -72,7 +75,7 @@
     },
     "presence": {
       "status": "partially_verified",
-      "evidence": "Native clock-controlled two-tab tests verify 60-second TTL, 50-second refresh, present/absent counters and room_id read payload. Browser connection/composer passes; sustained socket action oracle pending."
+      "evidence": "The active Alpine stream joins the managed-Reverb room presence channel and the obsolete 50-second application presence endpoint/controller path is absent. The final harness records presence subscription frames and a ten-minute zero-application-request idle observation; coordinator live execution remains pending."
     },
     "push": {
       "status": "verified",
@@ -102,8 +105,8 @@
       "status": "pending"
     },
     "browser": {
-      "status": "verified",
-      "evidence": "The PR5 two-context JSON/Alpine harness passed branch-head and exact managed-Reverb production verification. The PR6 fresh-PostgreSQL browser matrix passed all six persisted Livewire/Alpine checks with zero console problems; focused follow-up verified direct-room create/deduplication and closed-to-open persistence. The PR7 branch-head PostgreSQL sidebar harness passed all six checks for two-user/two-tab create, unread/app-badge and read clearing without navigation. PR8's stamped headed persistent-Chrome/PostgreSQL matrix passed all 11 search, bot, push, auth, transfer and logout flows with eight scoped negative records and zero unexpected console errors."
+      "status": "partially_verified",
+      "evidence": "PR5-PR8 live evidence remains valid for their branch-head matrices. The final committed harness now combines native login/logout/419 CSRF, chat/presence/unread/typing/edit/delete/boost, image/video/search, a fixed ten-minute zero-application-request idle observation, and sleep-latency signature with a kept-awake control. The PR9 coordinator live gate has not run."
     },
     "benchmarks": {
       "status": "verified",

@@ -35,6 +35,11 @@ const results = []
 const frames = []
 const observedEvents = new Set()
 const frameViolations = []
+const presenceFrames = []
+const observationMs = 600_000
+const keepAwakeIntervalMs = 60_000
+const sleepSignatureMinDeltaMs = Number(process.env.PR9_SLEEP_SIGNATURE_MIN_DELTA_MS || 250)
+let keepAwakeLatencies = []
 
 function recordFrames(page, label) {
   page.on("websocket", (socket) => {
@@ -49,6 +54,9 @@ function inspectFrame(payload, context, direction) {
   try {
     const envelope = JSON.parse(text)
     event = envelope.event || null
+    if (String(envelope.channel || "").includes(".presence")) {
+      presenceFrames.push({ context, direction, event, channel: envelope.channel })
+    }
     if (event && event.startsWith("App\\Events\\")) event = event.split("\\").pop()
   } catch {}
 
@@ -79,6 +87,14 @@ async function login(page, email, password) {
     page.waitForURL((url) => !url.pathname.startsWith("/session")),
     page.locator('form[action="/session"]').getByRole("button", { name: "Sign in", exact: true }).click(),
   ])
+}
+
+async function timedHealthRequest() {
+  const startedAt = Date.now()
+  const response = await desktop.request.get(`${baseUrl}/up`)
+  const latency = Date.now() - startedAt
+  if (!response.ok()) throw new Error(`Health probe failed: ${response.status()}`)
+  return latency
 }
 
 function lexxyEditable(scope, editorSelector = "lexxy-editor") {
@@ -172,7 +188,29 @@ recordFrames(userB, "user-b")
 try {
   await login(userA, process.env.PR5_USER_A_EMAIL, process.env.PR5_USER_A_PASSWORD)
   await login(userB, process.env.PR5_USER_B_EMAIL, process.env.PR5_USER_B_PASSWORD)
+
+  await check("login and native CSRF rejection", async () => {
+    if (new URL(userA.url()).pathname.startsWith("/session")) throw new Error("Login did not leave the session page")
+    const status = await userA.evaluate(async () => {
+      const response = await fetch("/session", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "email_address=missing%40example.test&password=invalid",
+      })
+      return response.status
+    })
+    if (status !== 419) throw new Error(`Missing CSRF token returned ${status}`)
+  })
+
   await Promise.all([userA.goto(roomUrl), userB.goto(roomUrl)])
+
+  await check("presence subscription", async () => {
+    await userA.waitForTimeout(2_000)
+    if (!presenceFrames.some(({ direction, channel }) => direction === "received" && channel.includes(".presence"))) {
+      throw new Error("No presence-channel subscription was observed")
+    }
+  })
 
   const token = Date.now().toString(36)
   const posted = `pr5-post-${token}`
@@ -331,6 +369,15 @@ try {
     if (!await video.getAttribute("poster")) throw new Error("Video poster is empty")
   })
 
+  await check("search", async () => {
+    await userA.goto(`${baseUrl}/searches`)
+    const form = userA.getByTestId("search-form")
+    await form.locator('input[type="search"]').fill(edited)
+    await form.getByRole("button", { name: "Search" }).click()
+    await userA.getByTestId("search-result-list").getByText(edited).waitFor()
+    await userA.goto(roomUrl)
+  })
+
   await check("first connection convergence", async () => {
     const delayed = await desktop.newPage()
     recordFrames(delayed, "first-connect")
@@ -384,6 +431,49 @@ try {
     if (missingEvents.length) throw new Error(`Missing event families: ${missingEvents.join(", ")}`)
     if (frameViolations.length) throw new Error(`Forbidden frame material: ${frameViolations.map(({ event, term }) => `${event}:${term}`).join(", ")}`)
   })
+
+  await check("kept-awake latency control", async () => {
+    const deadline = Date.now() + observationMs
+    while (Date.now() < deadline) {
+      keepAwakeLatencies.push(await timedHealthRequest())
+      await userA.waitForTimeout(Math.min(keepAwakeIntervalMs, Math.max(0, deadline - Date.now())))
+    }
+    keepAwakeLatencies.push(await timedHealthRequest())
+    return { observation_ms: observationMs, interval_ms: keepAwakeIntervalMs, latencies_ms: keepAwakeLatencies }
+  })
+
+  await check("ten-minute zero-application-request idle and sleep latency signature", async () => {
+    await userA.goto(roomUrl)
+    await userA.waitForLoadState("networkidle")
+    const applicationRequests = []
+    const observeRequest = (request) => {
+      const url = new URL(request.url())
+      if (url.origin === new URL(baseUrl).origin && request.resourceType() !== "websocket") {
+        applicationRequests.push({ method: request.method(), path: url.pathname })
+      }
+    }
+    userA.on("request", observeRequest)
+    await userA.waitForTimeout(observationMs)
+    userA.off("request", observeRequest)
+    if (applicationRequests.length) throw new Error(`Idle tab made application requests: ${JSON.stringify(applicationRequests)}`)
+
+    const idleLatency = await timedHealthRequest()
+    const warmLatency = await timedHealthRequest()
+    const sortedControl = [...keepAwakeLatencies].sort((a, b) => a - b)
+    const controlMedian = sortedControl[Math.floor(sortedControl.length / 2)]
+    const delta = idleLatency - Math.max(warmLatency, controlMedian)
+    if (delta < sleepSignatureMinDeltaMs) throw new Error(`Sleep signature delta ${delta}ms is below ${sleepSignatureMinDeltaMs}ms`)
+    return { observation_ms: observationMs, application_requests: applicationRequests, idle_latency_ms: idleLatency, warm_latency_ms: warmLatency, kept_awake_median_ms: controlMedian, signature_delta_ms: delta }
+  })
+
+  await check("logout invalidates the session", async () => {
+    await userA.goto(`${baseUrl}/users/me/profile`)
+    await Promise.all([userA.waitForURL(`${baseUrl}/session/new`), userA.getByRole("button", { name: "Log out" }).click()])
+    const protectedResponse = await userA.request.get(`${baseUrl}/searches`, { maxRedirects: 0 })
+    if (protectedResponse.status() !== 302 || !protectedResponse.headers().location?.endsWith("/session/new")) {
+      throw new Error("Protected route remained available after logout")
+    }
+  })
 } finally {
   await browser.close()
   const summary = {
@@ -394,6 +484,9 @@ try {
     frames,
     observed_event_families: [...observedEvents].sort(),
     frame_violations: frameViolations,
+    presence_frames: presenceFrames,
+    idle_observation_ms: observationMs,
+    kept_awake_latencies_ms: keepAwakeLatencies,
   }
   mkdirSync(dirname(outputPath), { recursive: true })
   writeFileSync(outputPath, `${JSON.stringify(summary, null, 2)}\n`)

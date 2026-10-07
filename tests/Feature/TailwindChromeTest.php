@@ -69,13 +69,12 @@ final class TailwindChromeTest extends TestCase
         $profileHtml = $this->get('/users/me/profile')->assertOk()->getContent();
         $alpine = file_get_contents(public_path('assets/campfire/alpine.js'));
         $messageStream = file_get_contents(public_path('assets/campfire/message_stream.js'));
-        $application = file_get_contents(public_path('assets/campfire/application.js'));
-        $importMap = json_decode(file_get_contents(resource_path('importmap.json')), true, flags: JSON_THROW_ON_ERROR)['imports'];
+        $application = file_get_contents(public_path('assets/campfire/application_json.js'));
         $presentation = file_get_contents(resource_path('views/messages/presentation.blade.php'));
 
-        $this->assertSame(1, preg_match('/import "(?<module>campfire\/alpine)"/', $application, $applicationImport));
-        $this->assertSame('ASSET:campfire/alpine.js', $importMap[$applicationImport['module']] ?? null);
-        $this->assertArrayNotHasKey('alpinejs', $importMap);
+        $this->assertStringContainsString('import "./alpine.js"', $application);
+        $this->assertStringNotContainsString('from "campfire/', $application);
+        $this->assertStringNotContainsString('import "campfire/', $application);
         $this->assertStringNotContainsString('import Alpine', $alpine);
         $this->assertStringNotContainsString('Alpine.start()', $alpine);
         $this->assertStringContainsString('document.addEventListener("livewire:init"', $alpine);
@@ -102,15 +101,6 @@ final class TailwindChromeTest extends TestCase
         $this->assertStringContainsString('document.createElement("input")', $alpine);
         $this->assertStringContainsString('await navigator.share(data)', $alpine);
 
-        config(['campfire.json_message_stream' => false]);
-        $legacyRoomHtml = $this->get('/rooms/'.$room->id)->assertOk()->getContent();
-        $this->assertStringContainsString('x-data="dropTarget"', $legacyRoomHtml);
-        $this->assertStringContainsString('@drop="drop($event)"', $legacyRoomHtml);
-        $this->assertStringContainsString('x-data="softKeyboard"', $legacyRoomHtml);
-        $this->assertStringContainsString('x-data="messagePopup"', $legacyRoomHtml);
-        $this->assertStringContainsString('@click.outside="close()"', $legacyRoomHtml);
-        $this->assertStringContainsString('clipboard(', $legacyRoomHtml);
-        $this->assertStringContainsString('this.$dispatch("campfire:drop", { files: event.dataTransfer.files })', $alpine);
     }
 
     public function test_mobile_sidebar_translation_is_owned_by_the_alpine_state(): void
@@ -133,7 +123,7 @@ final class TailwindChromeTest extends TestCase
         $this->assertSame("sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'", $sidebar->attributes->getNamedItem(':class')?->nodeValue);
     }
 
-    public function test_json_room_and_rollback_keep_the_composer_inside_the_layout_shell(): void
+    public function test_json_room_keeps_the_composer_inside_the_layout_shell(): void
     {
         [$user, $room] = $this->fixture();
         $this->auth($user);
@@ -147,36 +137,6 @@ final class TailwindChromeTest extends TestCase
         $this->assertCount(1, $xpath->query('//main[@id="main-content"]/footer[@id="footer"]'));
         $this->assertCount(1, $xpath->query('//main[@id="main-content"]/following-sibling::aside[@id="sidebar"]'));
 
-        config(['campfire.json_message_stream' => false]);
-        $legacyResponse = $this->get('/rooms/'.$room->id)->assertOk();
-        $legacyXPath = new DOMXPath($this->document($legacyResponse));
-        $legacyBody = $legacyXPath->query('//body')->item(0);
-        $this->assertInstanceOf(DOMElement::class, $legacyBody);
-        $this->assertContains('sidebar', preg_split('/\s+/', $legacyBody->getAttribute('class')));
-        // Older Linux libxml builds relocate nodes around the unknown
-        // <turbo-frame> custom element, so prove the whole legacy layout shell
-        // with raw HTML boundaries and ordering instead of parser-dependent
-        // DOM ancestor/sibling chains.
-        $legacyHtml = $legacyResponse->getContent();
-        $mainOpen = strpos($legacyHtml, '<main id="main-content"');
-        $footer = strpos($legacyHtml, '<footer id="footer"');
-        $composerForm = strpos($legacyHtml, '<form id="composer"');
-        $mainClose = strpos($legacyHtml, '</main>');
-        $sidebar = strpos($legacyHtml, '<aside id="sidebar"');
-        $this->assertNotFalse($mainOpen);
-        $this->assertNotFalse($footer);
-        $this->assertNotFalse($composerForm);
-        $this->assertNotFalse($mainClose);
-        $this->assertNotFalse($sidebar);
-        $this->assertGreaterThan($mainOpen, $footer);
-        $this->assertGreaterThan($footer, $composerForm);
-        $this->assertGreaterThan($composerForm, $mainClose);
-        $this->assertGreaterThan($mainClose, $sidebar);
-        $this->assertSame(1, substr_count($legacyHtml, '<main id="main-content"'));
-        $this->assertSame(1, substr_count($legacyHtml, '<footer id="footer"'));
-        $this->assertSame(1, substr_count($legacyHtml, '<form id="composer"'));
-        $this->assertSame(1, substr_count($legacyHtml, '</main>'));
-        $this->assertSame(1, substr_count($legacyHtml, '<aside id="sidebar"'));
     }
 
     public function test_retained_local_time_controller_owns_existing_and_optimistic_timestamps(): void
@@ -282,17 +242,20 @@ final class TailwindChromeTest extends TestCase
         $this->assertStringContainsString('--tw-ring-color:var(--color-orange-500)', $unreadRule['declarations']);
     }
 
-    public function test_removed_chrome_assets_and_stimulus_controllers_cannot_be_loaded(): void
+    public function test_removed_rails_frontend_assets_cannot_be_loaded(): void
     {
         $manifest = json_decode(file_get_contents(public_path('assets/.manifest.json')), true, flags: JSON_THROW_ON_ERROR);
-        $importMap = json_decode(file_get_contents(resource_path('importmap.json')), true, flags: JSON_THROW_ON_ERROR)['imports'];
         $source = file_get_contents(resource_path('css/app.css'));
 
-        foreach (['copy_to_clipboard', 'drop_target', 'lightbox', 'popup', 'soft_keyboard', 'toggle_class', 'web_share'] as $controller) {
-            $this->assertArrayNotHasKey('controllers/'.$controller.'_controller', $importMap);
-            $this->assertArrayNotHasKey('controllers/'.$controller.'_controller.js', $manifest);
-            $this->assertSame([], glob(public_path('assets/controllers/'.$controller.'_controller-*.js')));
+        foreach (['application.js', '@rails--request.js', 'turbo.js', 'turbo.min.js', 'stimulus.js', 'stimulus.min.js', 'action_cable.js', 'actioncable.js', 'actioncable.esm.js', 'rails-ujs.js', 'rails-ujs.esm.js', 'activestorage.js', 'activestorage.esm.js', 'actiontext.js', 'actiontext.esm.js', 'trix.js'] as $asset) {
+            $this->assertArrayNotHasKey($asset, $manifest);
         }
+        foreach (['controllers', 'helpers', 'initializers', 'models', 'lib/autocomplete'] as $directory) {
+            $this->assertDirectoryDoesNotExist(public_path('assets/'.$directory));
+        }
+        $this->assertFileDoesNotExist(resource_path('importmap.json'));
+        $this->assertFileExists(public_path('assets/campfire/lexxy.js'));
+        $this->assertFileExists(public_path('assets/lib/rich_text/campfire_extension-f62f017b.js'));
 
         foreach (['_reset.css', 'filters.css', 'flash.css', 'layout.css', 'lightbox.css', 'nav.css', 'panels.css', 'separators.css', 'sidebar.css', 'signup.css', 'trix.css'] as $stylesheet) {
             $this->assertArrayNotHasKey($stylesheet, $manifest);

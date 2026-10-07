@@ -303,13 +303,11 @@ final class CampfireTest extends TestCase
     public function test_the_browser_has_no_timer_that_calls_the_app(): void
     {
         // The measured cause of compute never sleeping was a fifty-second presence POST from every
-        // open tab. The consumer must not reinstate it: presence is read from Reverb instead.
-        $consumer = file_get_contents(public_path('assets/campfire/echo/consumer.js'));
+        // open tab. Presence now lives on the managed Reverb channel instead.
+        $stream = file_get_contents(public_path('assets/campfire/message_stream.js'));
 
-        $this->assertStringNotContainsString('setInterval', $consumer);
-        $this->assertStringNotContainsString('setTimeout', $consumer);
-        $this->assertStringNotContainsString('/presence', $consumer);
-        $this->assertMatchesRegularExpression('/kind: "presence", channel: `rooms\.\$\{room\}\.presence`\s*\}/', $consumer);
+        $this->assertStringNotContainsString('/presence', $stream);
+        $this->assertStringContainsString('echo.join(`rooms.${options.roomId}.presence`)', $stream);
 
         // And the endpoint it used to call is gone, so a stale cached bundle cannot keep it awake.
         [$user, $room] = $this->fixture();
