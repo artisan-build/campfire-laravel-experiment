@@ -45,6 +45,7 @@ final class Pr8LivewireTest extends TestCase
             ->assertSeeHtml('data-testid="search-results"')
             ->assertSeeHtml('data-testid="search-form"')
             ->assertSeeHtml('data-testid="search-result-list"')
+            ->assertSeeHtml('class="message message--formatted" data-message-id="'.$visible->id.'"')
             ->assertSee('Boundary needle visible')
             ->assertDontSee('Boundary needle hidden')
             ->assertDontSee('other-history')

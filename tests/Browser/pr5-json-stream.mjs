@@ -38,6 +38,7 @@ const frameViolations = []
 const presenceFrames = []
 const observationMs = 600_000
 const keepAwakeIntervalMs = 60_000
+const minimumHistoryMessages = 81
 const sleepSignatureMinDeltaMs = Number(process.env.PR9_SLEEP_SIGNATURE_MIN_DELTA_MS || 250)
 let keepAwakeLatencies = []
 
@@ -88,6 +89,36 @@ async function login(page, email, password) {
     page.waitForURL((url) => !url.pathname.startsWith("/session")),
     form.getByRole("button", { name: "Sign in" }).click(),
   ])
+}
+
+async function openRoom(page) {
+  await page.goto(roomUrl)
+  await page.getByTestId("room-json-composer").waitFor()
+}
+
+async function requirePaginationFixture(page) {
+  const messagesUrl = new URL(`${new URL(roomUrl).pathname}/messages`, baseUrl)
+  let before = null
+  let count = 0
+
+  while (count < minimumHistoryMessages) {
+    const pageUrl = new URL(messagesUrl)
+    if (before) pageUrl.searchParams.set("before", before)
+    const response = await page.request.get(pageUrl.href, { headers: { Accept: "application/json" } })
+    if (response.status() === 204) break
+    if (!response.ok()) throw new Error(`Pagination fixture probe failed with ${response.status()}`)
+    const messages = await response.json()
+    if (!Array.isArray(messages) || messages.length === 0) break
+    count += messages.length
+    before = String(messages[0].id)
+    if (messages.length < 40) break
+  }
+
+  if (count < minimumHistoryMessages) {
+    throw new Error(`PR5_ROOM_URL requires at least ${minimumHistoryMessages} existing messages for pagination; found ${count}. Seed disposable history before running.`)
+  }
+
+  return { minimum_messages: minimumHistoryMessages, observed_messages: count }
 }
 
 async function timedHealthRequest() {
@@ -192,19 +223,15 @@ try {
 
   await check("login and native CSRF rejection", async () => {
     if (new URL(userA.url()).pathname.startsWith("/session")) throw new Error("Login did not leave the session page")
-    const status = await userA.evaluate(async () => {
-      const response = await fetch("/session", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "email_address=missing%40example.test&password=invalid",
-      })
-      return response.status
-    })
+    const response = await userA.request.post(`${baseUrl}/session`)
+    const status = response.status()
     if (status !== 419) throw new Error(`Missing CSRF token returned ${status}`)
   })
 
-  await Promise.all([userA.goto(roomUrl), userB.goto(roomUrl)])
+  await Promise.all([openRoom(userA), openRoom(userB)])
+
+  await check("pagination fixture has required room history", async () => requirePaginationFixture(userA))
+  if (results.at(-1).status !== "passed") throw new Error(results.at(-1).error)
 
   await check("presence subscription", async () => {
     await userA.waitForTimeout(2_000)
@@ -328,25 +355,28 @@ try {
   })
 
   await check("scroll latest and before/after pagination stability", async () => {
+    await openRoom(userA)
     const list = userA.locator('[data-testid="room-message-history"]')
     const before = await list.locator("[data-message-id]").evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
+    if (before.length !== 40) throw new Error(`Expected a 40-message initial page from the seeded fixture, found ${before.length}`)
     await list.evaluate((element) => { element.scrollTop = 0 })
-    await userA.waitForTimeout(1_500)
+    await list.locator("[data-message-id]").nth(before.length).waitFor()
     const after = await list.locator("[data-message-id]").evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
     if (new Set(after).size !== after.length) throw new Error("Pagination introduced duplicate ids")
-    if (before.length >= 40 && after[0] === before[0]) throw new Error("Before-page did not advance")
-    if (after.length > before.length && await list.evaluate((element) => element.scrollTop) === 0) throw new Error("Before-page did not preserve scroll")
+    if (after[0] === before[0]) throw new Error("Before-page did not advance")
+    if (await list.evaluate((element) => element.scrollTop) === 0) throw new Error("Before-page did not preserve scroll")
 
     const oldestPermalink = await list.locator("[data-message-id]").first().locator("[data-stream-part=permalink]").getAttribute("href")
     await userA.goto(new URL(oldestPermalink, baseUrl).href)
-    const around = await userA.locator('[data-testid="room-message-history"] [data-message-id]').evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
-    await userA.locator('[data-testid="room-message-history"]').evaluate((element) => { element.scrollTop = element.scrollHeight })
-    await userA.waitForTimeout(1_500)
-    const afterPage = await userA.locator('[data-testid="room-message-history"] [data-message-id]').evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
+    const aroundList = userA.locator('[data-testid="room-message-history"]')
+    const around = await aroundList.locator("[data-message-id]").evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
+    await aroundList.evaluate((element) => { element.scrollTop = element.scrollHeight })
+    await aroundList.locator("[data-message-id]").nth(around.length).waitFor()
+    const afterPage = await aroundList.locator("[data-message-id]").evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
     if (new Set(afterPage).size !== afterPage.length) throw new Error("After-page introduced duplicate ids")
-    if (around.length >= 81 && afterPage.at(-1) === around.at(-1)) throw new Error("After-page did not advance")
+    if (afterPage.at(-1) === around.at(-1)) throw new Error("After-page did not advance")
 
-    await userA.goto(roomUrl)
+    await openRoom(userA)
     await list.evaluate((element) => { element.scrollTop = 0 })
     await post(userB2, `pr5-latest-${token}`)
     await userA.locator(".message-area__return-to-latest:not([hidden])").click()
@@ -354,6 +384,7 @@ try {
   })
 
   await check("image lightbox and video poster", async () => {
+    await openRoom(userA)
     const input = userA.locator('input[type="file"]')
     await input.setInputFiles(process.env.PR5_IMAGE_PATH)
     await userA.locator('[data-testid="room-json-composer"] button[type="submit"]').click()
@@ -371,15 +402,19 @@ try {
   })
 
   await check("search", async () => {
-    await userA.goto(`${baseUrl}/searches`)
-    const form = userA.getByTestId("search-form")
-    await form.locator('input[type="search"]').fill(edited)
-    await form.getByRole("button", { name: "Search" }).click()
-    await userA.getByTestId("search-result-list").getByText(edited).waitFor()
-    await userA.goto(roomUrl)
+    try {
+      await userA.goto(`${baseUrl}/searches`)
+      const form = userA.getByTestId("search-form")
+      await form.locator('input[type="search"]').fill(edited)
+      await form.getByRole("button", { name: "Search" }).click()
+      await userA.getByTestId("search-result-list").locator("[data-message-id]:visible", { hasText: edited }).first().waitFor()
+    } finally {
+      await openRoom(userA)
+    }
   })
 
   await check("first connection convergence", async () => {
+    await openRoom(userA)
     const delayed = await desktop.newPage()
     recordFrames(delayed, "first-connect")
     if (typeof delayed.routeWebSocket !== "function") throw new Error("Installed Playwright lacks WebSocket routing")
@@ -403,6 +438,7 @@ try {
   })
 
   await check("reconnect around post edit and delete", async () => {
+    await Promise.all([openRoom(userA), openRoom(userB2)])
     const reconnectText = `pr5-reconnect-${token}`
     await reconnect(userB2, async () => {
       await post(userA, reconnectText)
@@ -414,6 +450,7 @@ try {
   })
 
   await check("touch menu dialog and responsive layouts", async () => {
+    await Promise.all([openRoom(userA), openRoom(userB2)])
     const row = message(userB2, edited)
     await row.locator(".message__actions > details > summary").tap()
     if (!await row.locator(".message__actions > details").evaluate((details) => details.open)) throw new Error("Touch did not open details menu")
@@ -423,6 +460,7 @@ try {
   })
 
   await check("delete propagation", async () => {
+    await Promise.all([openRoom(userA), openRoom(userB2)])
     await remove(userA, edited)
     await message(userB2, edited).waitFor({ state: "detached" })
   })

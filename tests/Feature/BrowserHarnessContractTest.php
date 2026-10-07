@@ -29,7 +29,32 @@ final class BrowserHarnessContractTest extends TestCase
         }
 
         $this->assertStringContainsString('const observationMs = 600_000', $source);
+        $this->assertStringContainsString('const minimumHistoryMessages = 81', $source);
+        $this->assertStringContainsString('const response = await userA.request.post(`${baseUrl}/session`)', $source);
         $this->assertStringContainsString('if (status !== 419)', $source);
+        $this->assertStringNotContainsString('fetch("/session"', $source);
+        $this->assertStringNotContainsString('credentials: "include"', $source);
+        $this->assertStringNotContainsString('credentials: "omit"', $source);
+        $this->assertStringNotContainsString('Sec-Fetch-Site', $source);
+        $this->assertStringNotContainsString('X-CSRF-TOKEN', $source);
+        $this->assertStringNotContainsString('form: {', $source);
+        $this->assertStringContainsString('locator("[data-message-id]:visible", { hasText: edited })', $source);
+        $this->assertStringContainsString("} finally {\n      await openRoom(userA)", $source);
+        $this->assertStringContainsString('PR5_ROOM_URL requires at least ${minimumHistoryMessages} existing messages for pagination', $source);
+        $this->assertStringContainsString('if (before.length !== 40)', $source);
+        $this->assertStringNotContainsString('if (before.length >= 40', $source);
+        $this->assertStringNotContainsString('if (around.length >= 81', $source);
+        $this->assertStringNotContainsString('getByTestId("search-result-list").getByText(edited)', $source);
+
+        foreach ([
+            'first connection convergence',
+            'reconnect around post edit and delete',
+            'touch menu dialog and responsive layouts',
+            'delete propagation',
+        ] as $roomDependentCheck) {
+            $this->assertMatchesRegularExpression('/check\("'.preg_quote($roomDependentCheck, '/').'".*?await (?:Promise\.all\(\[)?openRoom\(userA\)/s', $source);
+        }
+
         $this->assertStringContainsString('applicationRequests.length', $source);
         $this->assertStringContainsString('signature_delta_ms', $source);
         $this->assertStringContainsString('presence_frames: presenceFrames', $source);
