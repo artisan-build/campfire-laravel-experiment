@@ -75,6 +75,7 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('started_at: new Date(startedAt).toISOString()', $source);
         $this->assertStringContainsString('method: request.method()', $source);
         $this->assertStringContainsString('path: `${url.pathname}${url.search}`', $source);
+        $this->assertMatchesRegularExpression('/let observationStartedAt = null.*?if \(observationStartedAt === null \|\| startedAt < observationStartedAt\) return.*?userA\.on\("request", observeRequest\)\s+observationStartedAt = Date\.now\(\)/s', $source);
 
         foreach ([
             'reconnect_count',

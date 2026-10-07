@@ -585,14 +585,14 @@ try {
     const appOrigin = new URL(baseUrl).origin
     const idleRequests = []
     const sleepMeasurements = []
-    const observationStartedAt = Date.now()
-    const deadline = observationStartedAt + idleObservationMs
-    let lastIdleActivityAt = observationStartedAt
-    let lastSleepProbeCompletedAt = observationStartedAt
+    let observationStartedAt = null
+    let lastIdleActivityAt = null
+    let lastSleepProbeCompletedAt = null
     let observedTransitionCount = 0
 
     const observeRequest = (request) => {
       const startedAt = Date.now()
+      if (observationStartedAt === null || startedAt < observationStartedAt) return
       const url = new URL(request.url())
       if (url.origin === appOrigin && request.resourceType() !== "websocket") {
         idleRequests.push({
@@ -606,6 +606,10 @@ try {
     }
 
     userA.on("request", observeRequest)
+    observationStartedAt = Date.now()
+    const deadline = observationStartedAt + idleObservationMs
+    lastIdleActivityAt = observationStartedAt
+    lastSleepProbeCompletedAt = observationStartedAt
     try {
       while (Date.now() < deadline) {
         await userA.waitForTimeout(Math.min(idleMonitorIntervalMs, Math.max(0, deadline - Date.now())))
