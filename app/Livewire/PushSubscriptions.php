@@ -40,11 +40,7 @@ final class PushSubscriptions extends Component
     public function testNotification(int $subscriptionId): void
     {
         $subscription = $this->subscription($subscriptionId);
-        DeliverPush::dispatch($subscription, [
-            'title' => 'Campfire',
-            'body' => 'Notifications are working',
-            'path' => route('chat.root', absolute: false),
-        ]);
+        DeliverPush::dispatch($subscription, DeliverPush::payload('Campfire', 'Notifications are working', route('chat.root', absolute: false)));
     }
 
     public function render()

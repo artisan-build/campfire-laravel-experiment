@@ -49,6 +49,7 @@ final class OutboundFetchSecurityTest extends TestCase
         $report = Mockery::mock(MessageSentReport::class);
         $report->shouldReceive('isSubscriptionExpired')->once()->andReturnFalse();
         $report->shouldReceive('isSuccess')->once()->andReturnTrue();
+        $report->shouldReceive('getResponse')->once()->andReturnNull();
         $client = Mockery::mock(WebPush::class);
         $client->shouldReceive('sendOneNotification')->once()->andReturn($report);
         $clientOptions = null;

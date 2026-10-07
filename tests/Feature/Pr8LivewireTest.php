@@ -157,7 +157,9 @@ final class Pr8LivewireTest extends TestCase
         $this->assertDatabaseHas('push_subscriptions', ['id' => $otherId, 'user_id' => $other->id]);
 
         Livewire::actingAs($user)->test(PushSubscriptions::class)->call('testNotification', $mine->id);
-        Queue::assertPushed(DeliverPush::class, fn (DeliverPush $job) => $job->subscription['id'] === $mine->id && $job->subscription['user_id'] === $user->id);
+        Queue::assertPushed(DeliverPush::class, fn (DeliverPush $job) => $job->subscription['id'] === $mine->id
+            && $job->subscription['user_id'] === $user->id
+            && $job->payload === DeliverPush::payload('Campfire', 'Notifications are working', '/'));
         Livewire::actingAs($user)->test(PushSubscriptions::class)->call('remove', $mine->id);
         $this->assertDatabaseMissing('push_subscriptions', ['id' => $mine->id]);
     }

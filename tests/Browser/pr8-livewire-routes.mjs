@@ -8,8 +8,20 @@ const require = createRequire(import.meta.url)
 const { chromium } = require(require.resolve("playwright", { paths: [ process.cwd() ] }))
 const baseUrl = (process.env.PR8_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "")
 const outputPath = resolve(process.env.PR8_OUTPUT || "tmp/pr8-livewire-routes/result.json")
-const required = [ "PR8_ADMIN_EMAIL", "PR8_ADMIN_PASSWORD", "PR8_JOIN_CODE", "PR8_CANDIDATE", "PR8_DATABASE_STAMP", "PR8_QUEUE_STAMP" ]
+const required = [ "PR8_ADMIN_EMAIL", "PR8_ADMIN_PASSWORD", "PR8_JOIN_CODE", "PR8_CANDIDATE", "PR8_DATABASE_STAMP", "PR8_QUEUE_STAMP", "PR8_ROOM_ID" ]
 for (const name of required) if (!process.env[name]) throw new Error(`Missing ${name}`)
+
+function integerInput(name, fallback, { positive = false } = {}) {
+  const raw = process.env[name] ?? fallback
+  if (!/^\d+$/.test(raw)) throw new Error(`${name} must be an integer`)
+  const value = Number(raw)
+  if (!Number.isSafeInteger(value) || (positive && value <= 0)) throw new Error(`${name} must be a${positive ? " positive" : "n"} integer`)
+  return value
+}
+
+const roomId = integerInput("PR8_ROOM_ID", undefined, { positive: true })
+const lockedTamperExpectedStatus = integerInput("PR8_LOCKED_TAMPER_STATUS", "500", { positive: true })
+const notificationTimeoutSeconds = integerInput("PR8_NOTIFICATION_TIMEOUT_SECONDS", "30", { positive: true })
 
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const profileRoot = resolve(process.env.PR8_PROFILE_ROOT || "tmp/pr8-livewire-routes/profiles", runId)
@@ -79,7 +91,7 @@ async function login(page, email, password) {
 }
 
 async function waitForNotification(page) {
-  const deadline = Date.now() + 30_000
+  const deadline = Date.now() + notificationTimeoutSeconds * 1_000
   while (Date.now() < deadline) {
     const notifications = await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration(window.location.origin)
@@ -108,6 +120,9 @@ const provenance = {
   base_url: baseUrl,
   database: process.env.PR8_DATABASE_STAMP,
   queue: process.env.PR8_QUEUE_STAMP,
+  room_id: roomId,
+  locked_tamper_expected_status: lockedTamperExpectedStatus,
+  notification_timeout_seconds: notificationTimeoutSeconds,
   browser_executable: launchOptions.executablePath || "playwright-default",
   browser_user_agent: await admin.evaluate(() => navigator.userAgent),
   headless: launchOptions.headless,
@@ -132,7 +147,10 @@ try {
     await Promise.all([ admin.waitForURL(`${baseUrl}/account/bots`), form.getByRole("button", { name: "Save changes" }).click() ])
     const row = admin.getByTestId("bot-row").filter({ hasText: `PR8 Bot ${runId}` })
     if (!(await row.locator("img").getAttribute("src")).includes("/users/")) throw new Error("Bot avatar upload did not persist")
-    botApiUrl = await row.locator('input[aria-label="curl command for posting messages"]').inputValue().then(command => command.replace(/^curl -d 'Hello!' /, ""))
+    const roomPath = `/rooms/${roomId}/`
+    const commands = await row.locator('input[aria-label="curl command for posting messages"]').evaluateAll((inputs, path) => inputs.map(input => input.value).filter(command => command.includes(path)), roomPath)
+    if (commands.length !== 1) throw new Error(`Expected one bot command for room ${roomId}, found ${commands.length}`)
+    botApiUrl = commands[0].replace(/^curl -d 'Hello!' /, "")
     if (!botApiUrl.includes("/messages")) throw new Error("Preserved bot API URL was not displayed")
   })
 
@@ -189,7 +207,7 @@ try {
     const rejected = await expectNegativeControl(member, {
       name: "join-code locked-property substitution",
       method: "POST",
-      status: 500,
+      status: lockedTamperExpectedStatus,
       matchesPath: pathname => pathname.endsWith("/update"),
     }, () => member.getByTestId("auth-sign-up").evaluate(async element => {
       const wire = window.Livewire.find(element.closest("[wire\\:id]").getAttribute("wire:id"))
@@ -248,7 +266,7 @@ try {
     const rejected = await expectNegativeControl(transfer, {
       name: "transfer-id locked-property substitution",
       method: "POST",
-      status: 500,
+      status: lockedTamperExpectedStatus,
       matchesPath: pathname => pathname.endsWith("/update"),
     }, () => transfer.getByTestId("auth-transfer").evaluate(async element => {
       const wire = window.Livewire.find(element.closest("[wire\\:id]").getAttribute("wire:id"))

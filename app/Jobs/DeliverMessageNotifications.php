@@ -89,7 +89,7 @@ final class DeliverMessageNotifications implements ShouldQueue
         }
         $present = app(Presence::class)->inRoom($m->room_id);
         $query = DB::table('push_subscriptions as p')->join('memberships as ms', 'ms.user_id', '=', 'p.user_id')->where('ms.room_id', $m->room_id)->where('ms.user_id', '!=', $m->creator_id)->whereNotIn('ms.user_id', $present)->where(fn ($q) => $q->where('ms.involvement', 'everything')->orWhere(fn ($q) => $q->where('ms.involvement', 'mentions')->whereIn('ms.user_id', $mentions)))->select('p.*');
-        $payload = ['title' => $m->room->type === 'Rooms::Direct' ? $m->creator->name : $m->room->name, 'body' => ($m->room->type === 'Rooms::Direct' ? '' : $m->creator->name.': ').$m->plainText(), 'path' => '/rooms/'.$m->room_id];
+        $payload = DeliverPush::payload($m->room->type === 'Rooms::Direct' ? $m->creator->name : $m->room->name, ($m->room->type === 'Rooms::Direct' ? '' : $m->creator->name.': ').$m->plainText(), '/rooms/'.$m->room_id);
         foreach ($query->get() as $sub) {
             DeliverPush::dispatch((array) $sub, $payload);
         }

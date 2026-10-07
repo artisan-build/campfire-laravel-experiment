@@ -116,6 +116,7 @@ final class PresenceTest extends TestCase
         (new DeliverMessageNotifications($message->id))->handle();
 
         Queue::assertPushed(DeliverPush::class, 1);
-        Queue::assertPushed(DeliverPush::class, fn (DeliverPush $job) => (int) $job->subscription['user_id'] === $away->id);
+        Queue::assertPushed(DeliverPush::class, fn (DeliverPush $job) => (int) $job->subscription['user_id'] === $away->id
+            && $job->payload === DeliverPush::payload('Watercooler', 'David: Coffee', '/rooms/'.$room->id));
     }
 }
