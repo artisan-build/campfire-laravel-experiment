@@ -36,11 +36,17 @@ const frames = []
 const observedEvents = new Set()
 const frameViolations = []
 const presenceFrames = []
-const observationMs = 600_000
+const idleObservationMs = 3_600_000
+const reconnectAttributionWindowMs = 5_000
+const quietStretchThresholdMs = 600_000
+const keepAwakeControlMs = 600_000
 const keepAwakeIntervalMs = 60_000
+const idleMonitorIntervalMs = 1_000
 const minimumHistoryMessages = 81
-const sleepSignatureMinDeltaMs = Number(process.env.PR9_SLEEP_SIGNATURE_MIN_DELTA_MS || 250)
-let keepAwakeLatencies = []
+const sleepSignatureMinDeltaMs = 250
+const retainedIdleRequestPaths = ["/broadcasting/auth", "/rooms/{id}/messages"]
+let keptAwakeControl = null
+let idleMeasurement = null
 
 function recordFrames(page, label) {
   page.on("websocket", (socket) => {
@@ -124,9 +130,75 @@ async function requirePaginationFixture(page) {
 async function timedHealthRequest() {
   const startedAt = Date.now()
   const response = await desktop.request.get(`${baseUrl}/up`)
-  const latency = Date.now() - startedAt
+  const completedAt = Date.now()
   if (!response.ok()) throw new Error(`Health probe failed: ${response.status()}`)
-  return latency
+  return {
+    started_at: new Date(startedAt).toISOString(),
+    started_at_ms: startedAt,
+    completed_at: new Date(completedAt).toISOString(),
+    completed_at_ms: completedAt,
+    latency_ms: completedAt - startedAt,
+  }
+}
+
+async function installIdleConnectionRecorder(page) {
+  await page.waitForFunction(() => globalThis.Echo?.connector?.pusher?.connection?.state === "connected", null, { timeout: 15_000 })
+  await page.evaluate(() => {
+    const connection = globalThis.Echo.connector.pusher.connection
+    const transitions = []
+    const reconnects = []
+    const initialAt = Date.now()
+    let hasConnected = connection.state === "connected"
+    let disconnectedAt = null
+
+    transitions.push({
+      observed_at: new Date(initialAt).toISOString(),
+      observed_at_ms: initialAt,
+      previous: null,
+      current: connection.state,
+      normalized_previous_state: null,
+      normalized_state: connection.state === "connected" ? "connected" : "disconnected",
+      is_reconnect: false,
+    })
+
+    connection.bind("state_change", ({ previous, current }) => {
+      const observedAt = Date.now()
+      if (hasConnected && current !== "connected" && disconnectedAt === null) disconnectedAt = observedAt
+      const isReconnect = current === "connected" && hasConnected && disconnectedAt !== null
+
+      transitions.push({
+        observed_at: new Date(observedAt).toISOString(),
+        observed_at_ms: observedAt,
+        previous,
+        current,
+        normalized_previous_state: isReconnect ? "disconnected" : previous === "connected" ? "connected" : "disconnected",
+        normalized_state: current === "connected" ? "connected" : "disconnected",
+        is_reconnect: isReconnect,
+      })
+
+      if (isReconnect) {
+        reconnects.push({
+          disconnected_at: new Date(disconnectedAt).toISOString(),
+          disconnected_at_ms: disconnectedAt,
+          connected_at: new Date(observedAt).toISOString(),
+          connected_at_ms: observedAt,
+          raw_previous_state: previous,
+          raw_current_state: current,
+        })
+      }
+
+      if (current === "connected") {
+        hasConnected = true
+        disconnectedAt = null
+      }
+    })
+
+    globalThis.__campfireIdleConnectionRecorder = { transitions, reconnects }
+  })
+}
+
+async function idleConnectionSnapshot(page) {
+  return page.evaluate(() => structuredClone(globalThis.__campfireIdleConnectionRecorder))
 }
 
 function lexxyEditable(scope, editorSelector = "lexxy-editor") {
@@ -482,37 +554,144 @@ try {
   })
 
   await check("kept-awake latency control", async () => {
-    const deadline = Date.now() + observationMs
+    const probes = []
+    const startedAt = Date.now()
+    const deadline = startedAt + keepAwakeControlMs
     while (Date.now() < deadline) {
-      keepAwakeLatencies.push(await timedHealthRequest())
+      probes.push(await timedHealthRequest())
       await userA.waitForTimeout(Math.min(keepAwakeIntervalMs, Math.max(0, deadline - Date.now())))
     }
-    keepAwakeLatencies.push(await timedHealthRequest())
-    return { observation_ms: observationMs, interval_ms: keepAwakeIntervalMs, latencies_ms: keepAwakeLatencies }
+    probes.push(await timedHealthRequest())
+    keptAwakeControl = {
+      started_at: new Date(startedAt).toISOString(),
+      completed_at: new Date().toISOString(),
+      observation_ms: keepAwakeControlMs,
+      interval_ms: keepAwakeIntervalMs,
+      probe_source: "harness API request context; not idle-tab traffic",
+      probe_path: "/up",
+      probes,
+    }
+    return keptAwakeControl
   })
 
-  await check("ten-minute zero-application-request idle and sleep latency signature", async () => {
+  await check("sixty-minute reconnect-attributed idle and sleep latency signature", async () => {
     await userA.goto(roomUrl)
     await userA.waitForLoadState("networkidle")
-    const applicationRequests = []
+    await installIdleConnectionRecorder(userA)
+
+    if (!keptAwakeControl) throw new Error("Kept-awake control did not complete")
+    const controlLatencies = keptAwakeControl.probes.map(({ latency_ms }) => latency_ms).sort((a, b) => a - b)
+    const controlMedian = controlLatencies[Math.floor(controlLatencies.length / 2)]
+    const appOrigin = new URL(baseUrl).origin
+    const idleRequests = []
+    const sleepMeasurements = []
+    const observationStartedAt = Date.now()
+    const deadline = observationStartedAt + idleObservationMs
+    let lastIdleActivityAt = observationStartedAt
+    let lastSleepProbeCompletedAt = observationStartedAt
+    let observedTransitionCount = 0
+
     const observeRequest = (request) => {
+      const startedAt = Date.now()
       const url = new URL(request.url())
-      if (url.origin === new URL(baseUrl).origin && request.resourceType() !== "websocket") {
-        applicationRequests.push({ method: request.method(), path: url.pathname })
+      if (url.origin === appOrigin && request.resourceType() !== "websocket") {
+        idleRequests.push({
+          started_at: new Date(startedAt).toISOString(),
+          started_at_ms: startedAt,
+          method: request.method(),
+          path: `${url.pathname}${url.search}`,
+        })
+        lastIdleActivityAt = startedAt
       }
     }
-    userA.on("request", observeRequest)
-    await userA.waitForTimeout(observationMs)
-    userA.off("request", observeRequest)
-    if (applicationRequests.length) throw new Error(`Idle tab made application requests: ${JSON.stringify(applicationRequests)}`)
 
-    const idleLatency = await timedHealthRequest()
-    const warmLatency = await timedHealthRequest()
-    const sortedControl = [...keepAwakeLatencies].sort((a, b) => a - b)
-    const controlMedian = sortedControl[Math.floor(sortedControl.length / 2)]
-    const delta = idleLatency - Math.max(warmLatency, controlMedian)
-    if (delta < sleepSignatureMinDeltaMs) throw new Error(`Sleep signature delta ${delta}ms is below ${sleepSignatureMinDeltaMs}ms`)
-    return { observation_ms: observationMs, application_requests: applicationRequests, idle_latency_ms: idleLatency, warm_latency_ms: warmLatency, kept_awake_median_ms: controlMedian, signature_delta_ms: delta }
+    userA.on("request", observeRequest)
+    try {
+      while (Date.now() < deadline) {
+        await userA.waitForTimeout(Math.min(idleMonitorIntervalMs, Math.max(0, deadline - Date.now())))
+        const snapshot = await idleConnectionSnapshot(userA)
+        const observedTransitions = snapshot.transitions.filter(({ observed_at_ms }) => observed_at_ms >= observationStartedAt)
+        for (const transition of observedTransitions.slice(observedTransitionCount)) {
+          lastIdleActivityAt = Math.max(lastIdleActivityAt, transition.observed_at_ms)
+        }
+        observedTransitionCount = observedTransitions.length
+
+        const observedReconnects = snapshot.reconnects.filter(({ connected_at_ms }) => connected_at_ms >= observationStartedAt)
+        const precedingReconnect = observedReconnects.at(-1)
+        const quietStartedAt = Math.max(lastIdleActivityAt, lastSleepProbeCompletedAt)
+        if (!precedingReconnect || Date.now() - quietStartedAt < quietStretchThresholdMs) continue
+
+        const firstProbe = await timedHealthRequest()
+        const warmProbe = await timedHealthRequest()
+        const afterProbeSnapshot = await idleConnectionSnapshot(userA)
+        const quietWasInterrupted = idleRequests.some(({ started_at_ms }) => started_at_ms > quietStartedAt && started_at_ms <= firstProbe.started_at_ms)
+          || afterProbeSnapshot.transitions.some(({ observed_at_ms }) => observed_at_ms > quietStartedAt && observed_at_ms <= firstProbe.started_at_ms)
+        const signatureDelta = firstProbe.latency_ms - Math.max(warmProbe.latency_ms, controlMedian)
+
+        sleepMeasurements.push({
+          quiet_started_at: new Date(quietStartedAt).toISOString(),
+          quiet_stretch_ms: firstProbe.started_at_ms - quietStartedAt,
+          preceding_reconnect_connected_at: precedingReconnect.connected_at,
+          probe_source: "harness API request context; not idle-tab traffic",
+          probe_path: "/up",
+          first_probe_started_at: firstProbe.started_at,
+          first_probe_completed_at: firstProbe.completed_at,
+          first_probe_latency_ms: firstProbe.latency_ms,
+          warm_probe_started_at: warmProbe.started_at,
+          warm_probe_completed_at: warmProbe.completed_at,
+          warm_probe_latency_ms: warmProbe.latency_ms,
+          kept_awake_median_ms: controlMedian,
+          signature_delta_ms: signatureDelta,
+          valid_quiet_stretch: !quietWasInterrupted,
+          sleep_signature: !quietWasInterrupted && signatureDelta >= sleepSignatureMinDeltaMs,
+        })
+        lastSleepProbeCompletedAt = warmProbe.completed_at_ms
+      }
+    } finally {
+      userA.off("request", observeRequest)
+    }
+
+    const observationCompletedAt = Date.now()
+    const connectionSnapshot = await idleConnectionSnapshot(userA)
+    const connectionStateTransitions = connectionSnapshot.transitions.filter(({ observed_at_ms }) => observed_at_ms <= observationCompletedAt)
+    const reconnects = connectionSnapshot.reconnects.filter(({ connected_at_ms }) => connected_at_ms >= observationStartedAt && connected_at_ms <= observationCompletedAt)
+    const attributedRequests = idleRequests.map((request) => {
+      const reconnect = reconnects.find(({ connected_at_ms }) => request.started_at_ms >= connected_at_ms && request.started_at_ms <= connected_at_ms + reconnectAttributionWindowMs)
+      return reconnect
+        ? { ...request, cause: "reconnect-driven", reconnect_connected_at: reconnect.connected_at }
+        : { ...request, cause: "unattributed", reconnect_connected_at: null }
+    })
+    const unattributedRequests = attributedRequests.filter(({ cause }) => cause === "unattributed")
+    const validSleepSignatures = sleepMeasurements.filter(({ sleep_signature }) => sleep_signature)
+
+    idleMeasurement = {
+      observation_started_at: new Date(observationStartedAt).toISOString(),
+      observation_completed_at: new Date(observationCompletedAt).toISOString(),
+      observation_ms: idleObservationMs,
+      observed_duration_ms: observationCompletedAt - observationStartedAt,
+      reconnect_attribution_window_ms: reconnectAttributionWindowMs,
+      quiet_stretch_threshold_ms: quietStretchThresholdMs,
+      sleep_signature_min_delta_ms: sleepSignatureMinDeltaMs,
+      idle_request_retention: {
+        scope: "all same-origin idle-tab HTTP requests",
+        source: "idle page request events; excludes harness health probes",
+        explicitly_included_paths: retainedIdleRequestPaths,
+      },
+      connection_state_transitions: connectionStateTransitions,
+      reconnect_count: reconnects.length,
+      reconnect_timestamps: reconnects.map(({ connected_at }) => connected_at),
+      reconnect_rate_per_hour: reconnects.length / (idleObservationMs / 3_600_000),
+      reconnects,
+      idle_tab_application_requests: attributedRequests,
+      unattributed_request_count: unattributedRequests.length,
+      sleep_measurements: sleepMeasurements,
+      sleep_signature_count: validSleepSignatures.length,
+      kept_awake_control: keptAwakeControl,
+    }
+
+    if (unattributedRequests.length) throw new Error(`Idle tab made unattributed application requests: ${JSON.stringify(unattributedRequests)}`)
+    if (validSleepSignatures.length === 0) throw new Error(`No sleep signature met the ${sleepSignatureMinDeltaMs}ms threshold after a ${quietStretchThresholdMs}ms quiet stretch following a reconnect`)
+    return idleMeasurement
   })
 
   await check("logout invalidates the session", async () => {
@@ -534,8 +713,9 @@ try {
     observed_event_families: [...observedEvents].sort(),
     frame_violations: frameViolations,
     presence_frames: presenceFrames,
-    idle_observation_ms: observationMs,
-    kept_awake_latencies_ms: keepAwakeLatencies,
+    idle_observation_ms: idleObservationMs,
+    kept_awake_control: keptAwakeControl,
+    idle_measurement: idleMeasurement,
   }
   mkdirSync(dirname(outputPath), { recursive: true })
   writeFileSync(outputPath, `${JSON.stringify(summary, null, 2)}\n`)

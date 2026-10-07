@@ -22,13 +22,17 @@ final class BrowserHarnessContractTest extends TestCase
             'image lightbox and video poster',
             'search',
             'kept-awake latency control',
-            'ten-minute zero-application-request idle and sleep latency signature',
+            'sixty-minute reconnect-attributed idle and sleep latency signature',
             'logout invalidates the session',
         ] as $criterion) {
             $this->assertStringContainsString($criterion, $source);
         }
 
-        $this->assertStringContainsString('const observationMs = 600_000', $source);
+        $this->assertStringContainsString('const idleObservationMs = 3_600_000', $source);
+        $this->assertStringContainsString('const reconnectAttributionWindowMs = 5_000', $source);
+        $this->assertStringContainsString('const quietStretchThresholdMs = 600_000', $source);
+        $this->assertStringContainsString('const sleepSignatureMinDeltaMs = 250', $source);
+        $this->assertStringNotContainsString('PR9_SLEEP_SIGNATURE_MIN_DELTA_MS', $source);
         $this->assertStringContainsString('const minimumHistoryMessages = 81', $source);
         $this->assertStringContainsString('const response = await userA.request.post(`${baseUrl}/session`)', $source);
         $this->assertStringContainsString('if (status !== 419)', $source);
@@ -58,8 +62,42 @@ final class BrowserHarnessContractTest extends TestCase
             $this->assertMatchesRegularExpression('/check\("'.preg_quote($roomDependentCheck, '/').'".*?await (?:Promise\.all\(\[)?openRoom\(userA\)/s', $source);
         }
 
-        $this->assertStringContainsString('applicationRequests.length', $source);
-        $this->assertStringContainsString('signature_delta_ms', $source);
+        $this->assertStringContainsString('connection.bind("state_change"', $source);
+        $this->assertStringContainsString('hasConnected && disconnectedAt !== null', $source);
+        $this->assertStringContainsString('is_reconnect: false', $source);
+        $this->assertStringContainsString('cause: "reconnect-driven"', $source);
+        $this->assertStringContainsString('cause: "unattributed"', $source);
+        $this->assertStringContainsString('request.started_at_ms >= connected_at_ms && request.started_at_ms <= connected_at_ms + reconnectAttributionWindowMs', $source);
+        $this->assertStringContainsString('if (unattributedRequests.length)', $source);
+        $this->assertMatchesRegularExpression('/if \(url\.origin === appOrigin && request\.resourceType\(\) !== "websocket"\) \{\s+idleRequests\.push\(/s', $source);
+        $this->assertStringContainsString('"/broadcasting/auth"', $source);
+        $this->assertStringContainsString('"/rooms/{id}/messages"', $source);
+        $this->assertStringContainsString('started_at: new Date(startedAt).toISOString()', $source);
+        $this->assertStringContainsString('method: request.method()', $source);
+        $this->assertStringContainsString('path: `${url.pathname}${url.search}`', $source);
+
+        foreach ([
+            'reconnect_count',
+            'reconnect_timestamps',
+            'reconnect_rate_per_hour',
+            'idle_tab_application_requests',
+            'kept_awake_control',
+            'probe_source',
+            'quiet_stretch_threshold_ms',
+            'sleep_signature_min_delta_ms',
+            'first_probe_started_at',
+            'first_probe_latency_ms',
+            'warm_probe_started_at',
+            'warm_probe_latency_ms',
+        ] as $artifactField) {
+            $this->assertStringContainsString($artifactField, $source);
+        }
+
+        $this->assertStringContainsString('validSleepSignatures.length === 0', $source);
+        $this->assertStringContainsString('const quietStartedAt = Math.max(lastIdleActivityAt, lastSleepProbeCompletedAt)', $source);
+        $this->assertStringContainsString('afterProbeSnapshot.transitions.some', $source);
+        $this->assertStringContainsString('const firstProbe = await timedHealthRequest()', $source);
+        $this->assertStringContainsString('const warmProbe = await timedHealthRequest()', $source);
         $this->assertStringContainsString('presence_frames: presenceFrames', $source);
     }
 
