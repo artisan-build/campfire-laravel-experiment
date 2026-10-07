@@ -42,6 +42,9 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString("} finally {\n      await openRoom(userA)", $source);
         $this->assertStringContainsString('PR5_ROOM_URL requires at least ${minimumHistoryMessages} existing messages for pagination', $source);
         $this->assertStringContainsString('if (before.length !== 40)', $source);
+        $this->assertStringContainsString('url.searchParams.has("after")', $source);
+        $this->assertStringContainsString('Initial connection discarded the permalink anchor', $source);
+        $this->assertStringContainsString('After-page response was not applied to the permalink window', $source);
         $this->assertStringNotContainsString('if (before.length >= 40', $source);
         $this->assertStringNotContainsString('if (around.length >= 81', $source);
         $this->assertStringNotContainsString('getByTestId("search-result-list").getByText(edited)', $source);

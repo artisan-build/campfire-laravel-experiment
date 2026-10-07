@@ -366,15 +366,25 @@ try {
     if (after[0] === before[0]) throw new Error("Before-page did not advance")
     if (await list.evaluate((element) => element.scrollTop) === 0) throw new Error("Before-page did not preserve scroll")
 
+    const permalinkAnchor = after[0]
     const oldestPermalink = await list.locator("[data-message-id]").first().locator("[data-stream-part=permalink]").getAttribute("href")
+    const afterResponse = userA.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return url.pathname === `${new URL(roomUrl).pathname}/messages` && url.searchParams.has("after")
+    })
     await userA.goto(new URL(oldestPermalink, baseUrl).href)
     const aroundList = userA.locator('[data-testid="room-message-history"]')
-    const around = await aroundList.locator("[data-message-id]").evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
+    await aroundList.locator(`[data-message-id="${permalinkAnchor}"]`).waitFor()
     await aroundList.evaluate((element) => { element.scrollTop = element.scrollHeight })
-    await aroundList.locator("[data-message-id]").nth(around.length).waitFor()
+    const response = await afterResponse
+    if (!response.ok()) throw new Error(`After-page request returned ${response.status()}`)
+    const responseIds = (await response.json()).map(({ id }) => String(id))
+    if (responseIds.length === 0) throw new Error("After-page returned no newer message ids")
+    await aroundList.locator(`[data-message-id="${responseIds.at(-1)}"]`).waitFor()
     const afterPage = await aroundList.locator("[data-message-id]").evaluateAll((rows) => rows.map((row) => row.dataset.messageId))
     if (new Set(afterPage).size !== afterPage.length) throw new Error("After-page introduced duplicate ids")
-    if (afterPage.at(-1) === around.at(-1)) throw new Error("After-page did not advance")
+    if (!afterPage.includes(permalinkAnchor)) throw new Error("Initial connection discarded the permalink anchor")
+    if (!responseIds.every((id) => afterPage.includes(id))) throw new Error("After-page response was not applied to the permalink window")
 
     await openRoom(userA)
     await list.evaluate((element) => { element.scrollTop = 0 })
