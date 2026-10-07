@@ -81,11 +81,12 @@ async function check(name, operation) {
 
 async function login(page, email, password) {
   await page.goto(`${baseUrl}/session/new`)
-  await page.locator('input[name="email_address"]').fill(email)
-  await page.locator('input[name="password"]').fill(password)
+  const form = page.getByTestId("sign-in-form")
+  await form.locator('input[type="email"]').fill(email)
+  await form.locator('input[type="password"]').fill(password)
   await Promise.all([
     page.waitForURL((url) => !url.pathname.startsWith("/session")),
-    page.locator('form[action="/session"]').getByRole("button", { name: "Sign in", exact: true }).click(),
+    form.getByRole("button", { name: "Sign in" }).click(),
   ])
 }
 

@@ -106,7 +106,7 @@
     },
     "browser": {
       "status": "partially_verified",
-      "evidence": "PR5-PR8 live evidence remains valid for their branch-head matrices. The final committed harness now combines native login/logout/419 CSRF, chat/presence/unread/typing/edit/delete/boost, image/video/search, a fixed ten-minute zero-application-request idle observation, and sleep-latency signature with a kept-awake control. The PR9 coordinator live gate has not run."
+      "evidence": "PR5-PR8 live evidence remains valid for their branch-head matrices. The final committed harness is designed and contract-checked for native login/logout/419 CSRF, chat/presence/unread/typing/edit/delete/boost, image/video/search, a fixed ten-minute zero-application-request idle observation, and sleep-latency signature with a kept-awake control. The PR9 coordinator live gate has not run."
     },
     "benchmarks": {
       "status": "verified",

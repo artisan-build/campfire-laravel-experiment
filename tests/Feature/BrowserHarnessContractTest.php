@@ -154,7 +154,13 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertStringContainsString('const phone = await browser.newContext', $source);
         $this->assertStringContainsString('writeFileSync(outputPath', $source);
         $this->assertStringNotContainsString('writeFileSync(outputPath, payload', $source);
-        $this->assertStringContainsString('page.locator(\'form[action="/session"]\').getByRole("button", { name: "Sign in", exact: true }).click()', $source);
+        $this->assertStringContainsString('const form = page.getByTestId("sign-in-form")', $source);
+        $this->assertStringContainsString('form.locator(\'input[type="email"]\').fill(email)', $source);
+        $this->assertStringContainsString('form.locator(\'input[type="password"]\').fill(password)', $source);
+        $this->assertStringContainsString('form.getByRole("button", { name: "Sign in" }).click()', $source);
+        $this->assertStringNotContainsString('form[action="/session"]', $source);
+        $this->assertStringNotContainsString('input[name="email_address"]', $source);
+        $this->assertStringNotContainsString('input[name="password"]', $source);
         $this->assertStringNotContainsString('page.locator(\'button[type="submit"]\').click()', $source);
         $this->assertStringContainsString('function lexxyEditable(scope, editorSelector = "lexxy-editor")', $source);
         $this->assertStringContainsString('lexxyEditable(page, "#message_body").evaluate(', $source);
