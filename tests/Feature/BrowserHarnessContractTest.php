@@ -62,7 +62,7 @@ final class BrowserHarnessContractTest extends TestCase
         $this->assertSame(2, substr_count($source, '      status: lockedTamperExpectedStatus,'));
         $this->assertSame(1, substr_count($source, 'status: 403'));
         $this->assertSame(1, substr_count($source, 'status: 404'));
-        $this->assertStringContainsString('writeFileSync(outputPath', $source);
+        $this->assertSame(2, substr_count($source, 'writeArtifact({'));
         $this->assertStringContainsString('process.exitCode = 1', $source);
         $this->assertStringNotContainsString('setInterval', $source);
 

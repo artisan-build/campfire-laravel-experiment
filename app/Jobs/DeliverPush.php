@@ -45,18 +45,33 @@ final class DeliverPush implements ShouldQueue
 
             return;
         }
-        $keys = app(Vapid::class)->keys();
+        try {
+            $keys = app(Vapid::class)->keys();
+            $client = $keys ? app(WebPush::class, [
+                'auth' => ['VAPID' => ['subject' => config('campfire.vapid.subject'), 'publicKey' => $keys['publicKey'], 'privateKey' => $keys['privateKey']]],
+                'defaultOptions' => [],
+                'timeout' => 10,
+                'clientOptions' => app(WebhookDestinations::class)->connectionOptions($destination),
+            ]) : null;
+        } catch (Throwable) {
+            $this->logOutcome($correlationId, $subscriptionId, false, false, null, 'bootstrap_error');
+
+            throw new RuntimeException('Push delivery failed (bootstrap_error).');
+        }
+
         if (! $keys) {
             $this->logOutcome($correlationId, $subscriptionId, false, false, null, 'vapid_unavailable');
 
             return;
         }
-        $client = app(WebPush::class, [
-            'auth' => ['VAPID' => ['subject' => config('campfire.vapid.subject'), 'publicKey' => $keys['publicKey'], 'privateKey' => $keys['privateKey']]],
-            'defaultOptions' => [],
-            'timeout' => 10,
-            'clientOptions' => app(WebhookDestinations::class)->connectionOptions($destination),
-        ]);
+
+        if (count($this->payload) === 3
+            && is_string($this->payload['title'] ?? null)
+            && is_string($this->payload['body'] ?? null)
+            && is_string($this->payload['path'] ?? null)) {
+            $this->payload = self::payload($this->payload['title'], $this->payload['body'], $this->payload['path']);
+        }
+
         $this->payload['options']['data']['badge'] = DB::table('memberships')->where('user_id', $s['user_id'])->whereNotNull('unread_at')->count();
         try {
             $encodedPayload = json_encode($this->payload, JSON_THROW_ON_ERROR);

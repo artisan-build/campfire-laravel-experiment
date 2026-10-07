@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import { createRequire } from "node:module"
-import { mkdirSync, writeFileSync } from "node:fs"
-import { dirname, resolve } from "node:path"
+import { mkdirSync } from "node:fs"
+import { resolve } from "node:path"
+import { createArtifactWriter } from "./pr8-artifact.mjs"
 
 const require = createRequire(import.meta.url)
 const { chromium } = require(require.resolve("playwright", { paths: [ process.cwd() ] }))
@@ -31,6 +32,16 @@ const launchOptions = {
 }
 const memberEmail = process.env.PR8_MEMBER_EMAIL || `pr8-${runId}@example.test`
 const memberPassword = process.env.PR8_MEMBER_PASSWORD || `Pr8-${runId}-password`
+const artifactCredentials = new Set([
+  process.env.PR8_ADMIN_EMAIL,
+  process.env.PR8_ADMIN_PASSWORD,
+  process.env.PR8_JOIN_CODE,
+  process.env.PR8_MEMBER_EMAIL,
+  process.env.PR8_MEMBER_PASSWORD,
+  memberEmail,
+  memberPassword,
+].filter(Boolean))
+const writeArtifact = createArtifactWriter(outputPath, artifactCredentials)
 const states = []
 const consoleProblems = []
 const expectedNegativeEvidence = []
@@ -152,6 +163,7 @@ try {
     if (commands.length !== 1) throw new Error(`Expected one bot command for room ${roomId}, found ${commands.length}`)
     botApiUrl = commands[0].replace(/^curl -d 'Hello!' /, "")
     if (!botApiUrl.includes("/messages")) throw new Error("Preserved bot API URL was not displayed")
+    artifactCredentials.add(new URL(botApiUrl).pathname.split("/")[3])
   })
 
   await step("bot api post update boost delete", async () => {
@@ -262,6 +274,7 @@ try {
   await step("session transfer locked credential and confirmation", async () => {
     await admin.goto(`${baseUrl}/users/me/profile`)
     const transferUrl = decodeTransferUrl(await admin.getByRole("link", { name: "Show QR code" }).getAttribute("href"))
+    artifactCredentials.add(new URL(transferUrl).pathname.split("/").pop())
     await transfer.goto(transferUrl)
     const rejected = await expectNegativeControl(transfer, {
       name: "transfer-id locked-property substitution",
@@ -300,11 +313,9 @@ try {
   })
 
   if (consoleProblems.length) throw new Error(`Console problems: ${JSON.stringify(consoleProblems)}`)
-  mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, JSON.stringify({ ok: true, run_id: runId, provenance, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems }, null, 2))
+  writeArtifact({ ok: true, run_id: runId, provenance, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems })
 } catch (error) {
-  mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, JSON.stringify({ ok: false, run_id: runId, provenance, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems, error: error.message }, null, 2))
+  writeArtifact({ ok: false, run_id: runId, provenance, states, expected_negative_evidence: expectedNegativeEvidence, console_problems: consoleProblems, error: error.message })
   process.exitCode = 1
 } finally {
   await Promise.all([ adminContext.close(), memberContext.close(), transferContext.close() ])

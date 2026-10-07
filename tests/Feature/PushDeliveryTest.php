@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Http\Controllers\PushController;
 use App\Jobs\DeliverPush;
 use App\Support\PushEndpoints;
+use App\Support\Vapid;
 use App\Support\WebhookDestinations;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -54,6 +56,106 @@ final class PushDeliveryTest extends TestCase
                 ],
             ],
         ], $payload);
+    }
+
+    public function test_push_delivery_normalizes_a_queued_legacy_payload_for_the_service_worker(): void
+    {
+        $encodedPayload = null;
+        $report = Mockery::mock(MessageSentReport::class);
+        $report->shouldReceive('isSubscriptionExpired')->once()->andReturnFalse();
+        $report->shouldReceive('isSuccess')->once()->andReturnTrue();
+        $report->shouldReceive('getResponse')->once()->andReturnNull();
+        $client = Mockery::mock(WebPush::class);
+        $client->shouldReceive('sendOneNotification')
+            ->once()
+            ->with(Mockery::type(Subscription::class), Mockery::on(function (string $payload) use (&$encodedPayload): bool {
+                $encodedPayload = $payload;
+
+                return true;
+            }))
+            ->andReturn($report);
+        $this->bindPushClient($client);
+
+        (new DeliverPush($this->subscription(), [
+            'title' => 'Legacy title',
+            'body' => 'Legacy body',
+            'path' => '/rooms/42',
+        ]))->handle();
+
+        $this->assertSame([
+            'title' => 'Legacy title',
+            'options' => [
+                'body' => 'Legacy body',
+                'data' => [
+                    'path' => '/rooms/42',
+                    'badge' => 0,
+                ],
+            ],
+        ], json_decode($encodedPayload, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    public function test_push_delivery_sanitizes_vapid_persistence_failures(): void
+    {
+        $rawException = new QueryException(
+            'sqlite',
+            'update accounts set settings = ?',
+            ['{"vapid":{"publicKey":"vapid-public-secret","privateKey":"vapid-private-secret"}}'],
+            new \RuntimeException('database-secret')
+        );
+        $this->bindPushClient(Mockery::mock(WebPush::class));
+        $this->app->bind(Vapid::class, fn () => new class($rawException)
+        {
+            public function __construct(private readonly QueryException $exception) {}
+
+            public function keys(): never
+            {
+                throw $this->exception;
+            }
+        });
+        $records = [];
+        Log::shouldReceive('info')->andReturnUsing(function (string $message, array $context) use (&$records): void {
+            $records[] = compact('message', 'context');
+        });
+
+        try {
+            (new DeliverPush($this->subscription(), DeliverPush::payload('title-secret', 'body-secret', '/path-secret')))->handle();
+            $this->fail('VAPID persistence failure did not fail the job.');
+        } catch (\RuntimeException $error) {
+            $this->assertSame('Push delivery failed (bootstrap_error).', $error->getMessage());
+            $this->assertNull($error->getPrevious());
+            $serializedFailure = $error->getMessage().json_encode($records, JSON_THROW_ON_ERROR);
+            foreach (['vapid-public-secret', 'vapid-private-secret', 'database-secret', 'update accounts', 'title-secret', 'body-secret', 'path-secret'] as $sentinel) {
+                $this->assertStringNotContainsString($sentinel, $serializedFailure);
+            }
+        }
+
+        $this->assertCount(1, $records);
+        $this->assertSame('bootstrap_error', $records[0]['context']['http_reason']);
+    }
+
+    public function test_push_delivery_sanitizes_web_push_client_construction_failures(): void
+    {
+        $this->bindPushClient(Mockery::mock(WebPush::class), 'vapid-public-secret', 'vapid-private-secret');
+        $this->app->bind(WebPush::class, fn () => throw new \RuntimeException('constructor-secret vapid-public-secret vapid-private-secret'));
+        $records = [];
+        Log::shouldReceive('info')->andReturnUsing(function (string $message, array $context) use (&$records): void {
+            $records[] = compact('message', 'context');
+        });
+
+        try {
+            (new DeliverPush($this->subscription(), DeliverPush::payload('title-secret', 'body-secret', '/path-secret')))->handle();
+            $this->fail('WebPush construction failure did not fail the job.');
+        } catch (\RuntimeException $error) {
+            $this->assertSame('Push delivery failed (bootstrap_error).', $error->getMessage());
+            $this->assertNull($error->getPrevious());
+            $serializedFailure = $error->getMessage().json_encode($records, JSON_THROW_ON_ERROR);
+            foreach (['constructor-secret', 'vapid-public-secret', 'vapid-private-secret', 'title-secret', 'body-secret', 'path-secret'] as $sentinel) {
+                $this->assertStringNotContainsString($sentinel, $serializedFailure);
+            }
+        }
+
+        $this->assertCount(1, $records);
+        $this->assertSame('bootstrap_error', $records[0]['context']['http_reason']);
     }
 
     public function test_push_delivery_logs_safe_attempt_and_failure_outcome_without_credentials_or_content(): void
