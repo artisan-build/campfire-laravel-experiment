@@ -250,9 +250,10 @@ committed asset when frontend source changes.
   account changes, direct-room creation/deduplication, the single Alpine runtime and a clean console.
   The PR7 two-user/two-tab sidebar harness passed against branch-head PostgreSQL and a local
   Pusher-compatible relay: room creation, unread/app-badge delivery and cross-tab read clearing all
-  updated without navigation. The final PR9 exact-SHA production matrix passed 22/22 through managed
-  Reverb, including native auth/CSRF, pagination, reconnect, media, search, logout, zero idle application
-  requests and the hibernation sleep signature.
+  updated without navigation. The final PR9 exact-candidate production run passed 20/22 checks. The
+  reconnect edit/delete scenario timed out once, so its dependent frame check missed `message.deleted`;
+  a separately stamped exact-deployment diagnostic passed only that scenario in 6.382 seconds, observed
+  posted/updated/deleted events with zero frame violations, and marked the other 21 checks not run.
 - **Direct-room deletion uses one policy.** Any current direct-room participant can delete it through
   either room route. This normalizes the previously divergent generic and namespaced HTTP decisions;
   the user-visible direct-room route already allowed the same capability.
@@ -260,8 +261,13 @@ committed asset when frontend source changes.
   legacy sound widget or autoplay; local timestamps lack the old full-timestamp hover text; custom
   boosts use the native prompt; and some inactive legacy data hooks remain in the markup.
 - **Presence is Reverb-owned.** Tabs join a managed-Reverb presence channel and make no periodic
-  application request. The final committed browser harness includes a ten-minute zero-request idle
-  observation and sleep-latency/kept-awake control, but that live gate is not claimed here.
+  application request. On the final exact production candidate, a fixed 60-minute observation recorded
+  zero reconnects (0/hour in this one-hour sample, not a guarantee of future frequency), zero idle-tab
+  application requests and zero unattributed requests. Against a 368 ms kept-awake median, five valid
+  ten-minute quiet stretches showed sleep-signature deltas of 531, 540, 539, 572 and 596 ms. The initial
+  stable connection was not counted as a reconnect; all request paths remain visible, and reconnect traffic
+  is accepted only within five seconds of an observed disconnected→connected transition. Authoritative
+  recovery remains unchanged because the protocol exposes no safe missed-event bound.
 - `campfire:backup` is gone. Cloud snapshots Postgres and the bucket holds the uploads.
 
 The original upstream benchmarks are not reproduced here; they measured a different storage engine
