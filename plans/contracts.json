@@ -20,11 +20,11 @@
     },
     "messages": {
       "status": "partially_verified",
-      "evidence": "Real create/update/delete, FTS, unreads and commit/rollback notification behavior are verified. The final PR9 exact-SHA managed-Reverb production matrix verifies bounded JSON resources, optimistic reconciliation, stable before/after pagination with permalink retention, return-to-latest, reconnect convergence, editing and deletion."
+      "evidence": "Real create/update/delete, FTS, unreads and commit/rollback notification behavior are verified. The final PR9 exact-candidate managed-Reverb run verifies bounded JSON resources, optimistic reconciliation, stable before/after pagination with permalink retention and return-to-latest. Its reconnect edit/delete scenario timed out once; a separately stamped exact-deployment focused diagnostic passed that scenario in 6.382 seconds."
     },
     "json_message_stream": {
       "status": "verified",
-      "evidence": "Focused PHPUnit verifies the Alpine/Echo bootstrap, five-event wiring, authoritative reconnect, canonical editable rich text, JSON mutation contracts, resource schema and authorization. The Turbo rollback flag, rendered stream branches and obsolete public Rails module graph are removed; the retained entry point uses relative modules. The final PR9 production matrix observed all five JSON event families with no forbidden credential or legacy-frame material."
+      "evidence": "Focused PHPUnit verifies the Alpine/Echo bootstrap, five-event wiring, authoritative reconnect, canonical editable rich text, JSON mutation contracts, resource schema and authorization. The Turbo rollback flag, rendered stream branches and obsolete public Rails module graph are removed; the retained entry point uses relative modules. The final exact-candidate full run plus its focused reconnect diagnostic observed all five JSON event families with zero frame violations; the diagnostic supplied message.deleted after the full run's reconnect timeout."
     },
     "livewire_forms": {
       "status": "verified",
@@ -71,11 +71,11 @@
     },
     "websockets": {
       "status": "partially_verified",
-      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room and Livewire sidebar subscriptions, per-user authorization and payload confidentiality are focused-test verified. The final PR9 managed-Reverb production matrix passed two-user/multi-tab presence, unread, typing, post/edit/delete/boost propagation and logout invalidation."
+      "evidence": "Independent pre-cutover live sockets reject forged/private streams and stop publication after logout. The default JSON room and Livewire sidebar subscriptions, per-user authorization and payload confidentiality are focused-test verified. The final exact-candidate managed-Reverb run passed two-user/multi-tab presence, unread, typing, post/boost propagation and logout invalidation; a separately stamped focused diagnostic passed reconnect post/edit/delete propagation."
     },
     "presence": {
       "status": "partially_verified",
-      "evidence": "The active Alpine stream joins the managed-Reverb room presence channel and the obsolete 50-second application presence endpoint/controller path is absent. The final PR9 production matrix recorded 45 presence frames and a fixed ten-minute idle observation with zero application requests."
+      "evidence": "The active Alpine stream joins the managed-Reverb room presence channel and the obsolete 50-second application presence endpoint/controller path is absent. The final exact-candidate fixed 60-minute production observation recorded zero reconnects (0/hour in this one-hour sample), zero idle-tab application requests and zero unattributed requests. Five valid ten-minute quiet stretches produced sleep deltas of 531, 540, 539, 572 and 596 ms against a 368 ms kept-awake median. Initial connection is not a reconnect; all request paths remain retained, and only traffic within five seconds after an observed disconnected-to-connected transition is reconnect-attributed. Authoritative recovery remains unchanged because no safe missed-event bound is exposed."
     },
     "push": {
       "status": "verified",
@@ -106,7 +106,7 @@
     },
     "browser": {
       "status": "verified",
-      "evidence": "PR5-PR8 live evidence remains valid for their branch-head matrices. The final PR9 exact-SHA production harness passed 22/22 for native login/logout/419 CSRF, chat/presence/unread/typing/edit/delete/boost, before/after pagination with permalink retention, image/video/search, initial and reconnect convergence, a fixed ten-minute zero-application-request idle observation, and sleep-latency signature with a kept-awake control."
+      "evidence": "PR5-PR8 live evidence remains valid for their branch-head matrices. The final PR9 exact-candidate full production artifact passed 20/22 checks: reconnect edit/delete timed out once and the dependent frame check therefore missed message.deleted. A separately stamped exact-deployment diagnostic passed only that reconnect scenario in 6.382 seconds, observed posted/updated/deleted with zero frame violations, and marked the other 21 checks not run. The fixed 60-minute idle check passed with zero reconnects, zero idle/unattributed requests and five valid sleep signatures."
     },
     "benchmarks": {
       "status": "verified",
@@ -118,7 +118,7 @@
     "independent_http": "18 checks passed",
     "independent_cable_security": "3 checks passed",
     "claude": "Requirements/architecture reviewed; source export blocked by automatic approval review.",
-    "browser": "PR5 exact managed-Reverb production matrix passed 15/15; PR6 fresh-PostgreSQL Livewire matrix passed 6/6; PR7 branch-head sidebar matrix passed 6/6; PR8 stamped headed persistent-Chrome/PostgreSQL matrix passed 11/11 with real queued push delivery and forced-unsubscribe logout recovery; PR9 exact-SHA managed-Reverb production matrix passed 22/22 with zero idle application requests, a 1,690ms sleep signature delta, all five JSON event families and zero forbidden frame material",
+    "browser": "PR5 exact managed-Reverb production matrix passed 15/15; PR6 fresh-PostgreSQL Livewire matrix passed 6/6; PR7 branch-head sidebar matrix passed 6/6; PR8 stamped headed persistent-Chrome/PostgreSQL matrix passed 11/11 with real queued push delivery and forced-unsubscribe logout recovery; PR9 exact-candidate full artifact passed 20/22, with one reconnect timeout and its dependent missing-message.deleted frame check. The separately stamped reconnect-only diagnostic passed in 6.382 seconds with posted/updated/deleted and zero frame violations while marking 21 checks not run. Its fixed 60-minute idle check measured 0 reconnects (0/hour sample), 0 idle/unattributed requests and five valid sleep deltas of 531, 540, 539, 572 and 596 ms against a 368 ms kept-awake median",
     "concurrent_native_writes": "Four independent PHP applications each create eight messages while holding membership reads 20ms: 32 messages and 32 FTS rows persisted. Independent production FPM 16-client write tests completed twice without failed requests.",
     "pending_socket_admission": "Real TCP regression covers pending admission, deadline and authenticated revocation. Independent production retest admits all 100 connections and delivers all 30 paced messages to every socket in both fresh runs.",
     "benchmark_provenance": "HTTP runtime 112a66f; socket runtime 87b332b. Diff contains only socket admission code, its tests and ledger; all measured HTTP paths unchanged. Production image runtime hashes independently verified."
