@@ -96,6 +96,15 @@ final class BrowserHarnessContractTest extends TestCase
 
         $this->assertStringContainsString('validSleepSignatures.length === 0', $source);
         $this->assertStringContainsString('const quietStartedAt = Math.max(lastIdleActivityAt, lastSleepProbeCompletedAt)', $source);
+        $this->assertStringContainsString('if (Date.now() - quietStartedAt < quietStretchThresholdMs) continue', $source);
+        $this->assertStringNotContainsString('if (!precedingReconnect ||', $source);
+        $this->assertStringContainsString('preceding_reconnect_connected_at: precedingReconnect?.connected_at ?? null', $source);
+        $this->assertStringContainsString('interval_origin: quietIntervalOrigin', $source);
+
+        foreach (['initial-stable-connection', 'post-reconnect', 'post-probe', 'idle-tab-request'] as $intervalOrigin) {
+            $this->assertStringContainsString($intervalOrigin, $source);
+        }
+
         $this->assertStringContainsString('afterProbeSnapshot.transitions.some', $source);
         $this->assertStringContainsString('const firstProbe = await timedHealthRequest()', $source);
         $this->assertStringContainsString('const warmProbe = await timedHealthRequest()', $source);

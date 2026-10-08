@@ -587,6 +587,7 @@ try {
     const sleepMeasurements = []
     let observationStartedAt = null
     let lastIdleActivityAt = null
+    let lastIdleActivityOrigin = null
     let lastSleepProbeCompletedAt = null
     let observedTransitionCount = 0
 
@@ -602,6 +603,12 @@ try {
           path: `${url.pathname}${url.search}`,
         })
         lastIdleActivityAt = startedAt
+        lastIdleActivityOrigin = {
+          type: "idle-tab-request",
+          at: new Date(startedAt).toISOString(),
+          method: request.method(),
+          path: `${url.pathname}${url.search}`,
+        }
       }
     }
 
@@ -609,6 +616,7 @@ try {
     observationStartedAt = Date.now()
     const deadline = observationStartedAt + idleObservationMs
     lastIdleActivityAt = observationStartedAt
+    lastIdleActivityOrigin = { type: "initial-stable-connection", at: new Date(observationStartedAt).toISOString() }
     lastSleepProbeCompletedAt = observationStartedAt
     try {
       while (Date.now() < deadline) {
@@ -616,14 +624,25 @@ try {
         const snapshot = await idleConnectionSnapshot(userA)
         const observedTransitions = snapshot.transitions.filter(({ observed_at_ms }) => observed_at_ms >= observationStartedAt)
         for (const transition of observedTransitions.slice(observedTransitionCount)) {
-          lastIdleActivityAt = Math.max(lastIdleActivityAt, transition.observed_at_ms)
+          if (transition.observed_at_ms >= lastIdleActivityAt) {
+            lastIdleActivityAt = transition.observed_at_ms
+            lastIdleActivityOrigin = {
+              type: transition.is_reconnect ? "post-reconnect" : "connection-state-transition",
+              at: transition.observed_at,
+              previous: transition.previous,
+              current: transition.current,
+            }
+          }
         }
         observedTransitionCount = observedTransitions.length
 
         const observedReconnects = snapshot.reconnects.filter(({ connected_at_ms }) => connected_at_ms >= observationStartedAt)
         const precedingReconnect = observedReconnects.at(-1)
         const quietStartedAt = Math.max(lastIdleActivityAt, lastSleepProbeCompletedAt)
-        if (!precedingReconnect || Date.now() - quietStartedAt < quietStretchThresholdMs) continue
+        const quietIntervalOrigin = lastSleepProbeCompletedAt > lastIdleActivityAt
+          ? { type: "post-probe", at: new Date(lastSleepProbeCompletedAt).toISOString() }
+          : lastIdleActivityOrigin
+        if (Date.now() - quietStartedAt < quietStretchThresholdMs) continue
 
         const firstProbe = await timedHealthRequest()
         const warmProbe = await timedHealthRequest()
@@ -635,7 +654,8 @@ try {
         sleepMeasurements.push({
           quiet_started_at: new Date(quietStartedAt).toISOString(),
           quiet_stretch_ms: firstProbe.started_at_ms - quietStartedAt,
-          preceding_reconnect_connected_at: precedingReconnect.connected_at,
+          interval_origin: quietIntervalOrigin,
+          preceding_reconnect_connected_at: precedingReconnect?.connected_at ?? null,
           probe_source: "harness API request context; not idle-tab traffic",
           probe_path: "/up",
           first_probe_started_at: firstProbe.started_at,
@@ -694,7 +714,7 @@ try {
     }
 
     if (unattributedRequests.length) throw new Error(`Idle tab made unattributed application requests: ${JSON.stringify(unattributedRequests)}`)
-    if (validSleepSignatures.length === 0) throw new Error(`No sleep signature met the ${sleepSignatureMinDeltaMs}ms threshold after a ${quietStretchThresholdMs}ms quiet stretch following a reconnect`)
+    if (validSleepSignatures.length === 0) throw new Error(`No sleep signature met the ${sleepSignatureMinDeltaMs}ms threshold after a ${quietStretchThresholdMs}ms quiet stretch`)
     return idleMeasurement
   })
 
